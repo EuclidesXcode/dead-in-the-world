@@ -233,8 +233,8 @@ export default function GameCanvas() {
       const p = useGameStore.getState().player;
       if (!p) { animFrameRef.current = requestAnimationFrame(gameLoop); return; }
 
-      // Movimentação
-      const speed = 80 * (1 + p.agility * 0.04);
+      // Movimentação (Escalada 1.6x para bater com os pixels novos do mapa de zoom maior)
+      const speed = 130 * (1 + p.agility * 0.04);
       let dx = 0, dy = 0;
       const keys = keysRef.current;
       if (keys.has('KeyW') || keys.has('ArrowUp')) dy -= 1;
@@ -247,11 +247,49 @@ export default function GameCanvas() {
 
       if (moving) {
         const len = Math.sqrt(dx * dx + dy * dy);
-        playerPosRef.current.x += (dx / len) * speed * dt;
-        playerPosRef.current.y += (dy / len) * speed * dt;
-        const newStamina = Math.max(0, p.current_stamina - dt * 6);
-        if (newStamina !== p.current_stamina) updatePlayerStats({ current_stamina: newStamina });
-        checkItemPickup();
+        let stepX = (dx / len) * speed * dt;
+        let stepY = (dy / len) * speed * dt;
+
+        // Collision Check: testa elemento no centro-baixo do player (seus "pés")
+        const { w, h } = useWindowSize();
+        // Os próximos pés estariam visualmente parados no centro (h/2 + offset) se a camera fosse solta.
+        // Como a camera segue o player, "andar" significa que o mapa anda CORTRA o player.
+        // Simulamos a colisão testando qual elemento DOM está sob o centro da tela se testássemos o próximo tick.
+        // Uma forma fluída de testar é verificar o SVG renderizado em w/2, h/2 + 20 antes de applyStep.
+        
+        // Simples test: The player is always fixed at w/2, h/2. The map is drawn underneath.
+        // Test elements at (w/2, h/2 + 15) to hit the walkable-road.
+        const centerEls = document.elementsFromPoint(w/2, h/2 + 10);
+        const onRoad = centerEls.some(el => el.classList.contains('walkable-road') || el.classList.contains('vignette'));
+        // (Nota: como o mapa tem SVG e a vignette no meio, melhor adicionar vignette na conta e usar uma logica mais macia se precisar)
+        // Actually, um culling preciso seria melhor apenas com as bounds em JS, mas vamos com a approach visual:
+        // A gente não "trava" o player instantaneamente no elementFromPoint porque o mapa move DEPOIS do calculo.
+        // Vamos testar as bordas de restrição de movimento.
+        let moveAllowed = true;
+        if (!process.env.NEXT_PUBLIC_IGNORE_COLLISION) { // flag secreta
+           const projectedEls = document.elementsFromPoint(w/2 + stepX, h/2 + stepY + 10);
+           moveAllowed = projectedEls.some(el => el.classList.contains('walkable-road'));
+           
+           // Permit block if not on road, but allow sliding along walls if one axis works
+           if (!moveAllowed) {
+              const testX = document.elementsFromPoint(w/2 + stepX, h/2 + 10);
+              if (testX.some(el => el.classList.contains('walkable-road'))) { stepY = 0; moveAllowed = true; }
+              else {
+                 const testY = document.elementsFromPoint(w/2, h/2 + stepY + 10);
+                 if (testY.some(el => el.classList.contains('walkable-road'))) { stepX = 0; moveAllowed = true; }
+              }
+           }
+        }
+
+        if (moveAllowed) {
+          playerPosRef.current.x += stepX;
+          playerPosRef.current.y += stepY;
+          const newStamina = Math.max(0, p.current_stamina - dt * 6);
+          if (newStamina !== p.current_stamina) updatePlayerStats({ current_stamina: newStamina });
+          checkItemPickup();
+        } else {
+          // Bloqueado (esbarrou fora da rua)
+        }
       } else {
         const newStamina = Math.min(p.max_stamina, p.current_stamina + dt * 10);
         if (Math.abs(newStamina - p.current_stamina) > 0.1) updatePlayerStats({ current_stamina: newStamina });

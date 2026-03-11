@@ -328,8 +328,10 @@ export default function StreetMap({
           const sidewalkPx = roadPx + getPixelWidth(realW * 0.35, lat) * 2;
           return (
             <path key={`sw-${way.id}`} d={ptsToD(pts)}
+              className="walkable-road"
               fill="none" stroke="url(#sidewalk-pat)"
               strokeWidth={sidewalkPx} strokeLinecap="round" strokeLinejoin="round"
+              pointerEvents="stroke"
             />
           );
         })}
@@ -349,10 +351,12 @@ export default function StreetMap({
           const isMinor = ['footway', 'cycleway', 'path', 'steps'].includes(type);
           return (
             <path key={`rd-${way.id}`} d={ptsToD(pts)}
+              className="walkable-road"
               fill="none"
               stroke={isMinor ? SIDEWALK : 'url(#asphalt-pat)'}
               strokeWidth={isMinor ? roadPx * 0.5 : roadPx}
               strokeLinecap="round" strokeLinejoin="round"
+              pointerEvents="stroke"
             />
           );
         })}
