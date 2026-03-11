@@ -21,6 +21,8 @@ interface VisualProjectile {
   tx: number;
   ty: number;
   progress: number;
+  size?: number;
+  type?: string;
 }
 
 export function useWindowSize() {
@@ -422,37 +424,43 @@ export default function GameCanvas() {
       });
 
       if (!missed && target) {
-        if ('zombie_type' in target) { // Dano em Zumbi
-          audioSystem?.playZombieHurt();
-          const freshTarget = useGameStore.getState().zombies.get(target.id);
-          if (!freshTarget || !freshTarget.is_alive) return true;
-          const newHp = Math.max(0, freshTarget.current_health - damage);
-          if (newHp <= 0) {
-            setZombie({ ...freshTarget, is_alive: false, current_health: 0 });
-            
-            // Drop de item
-            const drop = generateZombieDrop(freshTarget.pos_x, freshTarget.pos_y);
-            if (drop) {
-              useGameStore.getState().addWorldItem(drop);
-            }
+        const splashRadius = weapon.stats?.splash_radius || 0;
+        const targetsToHit = splashRadius > 0 
+          ? findTargetsAtPosition(tx, ty, splashRadius, 10) // Pega até 10 inimigos no raio
+          : [target];
 
-            setTimeout(() => removeZombie(target.id), 800);
-            updatePlayerStats({ kills: p.kills + 1, xp: p.xp + freshTarget.xp_reward });
-            addNotification(`Zumbi abatido! +${freshTarget.xp_reward} XP`, 'success');
-          } else {
-            setZombie({ ...freshTarget, current_health: newHp });
+        targetsToHit.forEach(t => {
+          if ('zombie_type' in t) { // Dano em Zumbi
+            audioSystem?.playZombieHurt();
+            const freshTarget = useGameStore.getState().zombies.get(t.id);
+            if (!freshTarget || !freshTarget.is_alive) return;
+            
+            // Dano de splash pode ser menor se não for o alvo principal? 
+            // Por enquanto 100% de dano em todos no raio
+            const newHp = Math.max(0, freshTarget.current_health - (splashRadius > 0 ? damage * 0.8 : damage));
+            
+            if (newHp <= 0) {
+              setZombie({ ...freshTarget, is_alive: false, current_health: 0 });
+              const drop = generateZombieDrop(freshTarget.pos_x, freshTarget.pos_y);
+              if (drop) useGameStore.getState().addWorldItem(drop);
+              setTimeout(() => removeZombie(t.id), 800);
+              updatePlayerStats({ kills: p.kills + 1, xp: p.xp + (freshTarget.xp_reward || 10) });
+              if (targetsToHit.length === 1) addNotification(`Zumbi abatido! +${freshTarget.xp_reward} XP`, 'success');
+            } else {
+              setZombie({ ...freshTarget, current_health: newHp });
+            }
           }
-        } else { // PvP: Dano em outro Player
-           addNotification(`Dano em ${target.username}: ${damage}`, 'danger');
-           // No Supabase precisaríamos de uma edge function ou canal de dano
-           // Por enquanto, mostramos apenas o feedback visual local
-        }
+        });
+        
+        if (splashRadius > 0) addNotification(`Explosão atingiu ${targetsToHit.length} inimigos!`, 'danger');
       }
 
       // Sistema visual do projétil
       setProjectiles(prev => [...prev.slice(-10), {
         id: Math.random().toString(36).slice(2),
         sx: px, sy: py, tx, ty, progress: 0,
+        size: weapon.stats?.projectile_size || 3,
+        type: weapon.stats?.bullet_type || 'normal',
       }]);
 
       return true;
@@ -823,11 +831,43 @@ export default function GameCanvas() {
           const x = pj.sx + (pj.tx - pj.sx) * pj.progress;
           const y = pj.sy + (pj.ty - pj.sy) * pj.progress;
           const angle = Math.atan2(pj.ty - pj.sy, pj.tx - pj.sx) * 180 / Math.PI;
+          const size = pj.size || 3;
+          
+          let color = '#ffaa00';
+          let shadow = '0 0 5px #ff6600';
+          let width = size * 3;
+          let height = size;
+
+          if (pj.type === 'plasma') {
+            color = '#00f2ff';
+            shadow = '0 0 10px #00f2ff, 0 0 20px #00f2ff66';
+            width = size * 4;
+          } else if (pj.type === 'rocket') {
+            color = '#ff4400';
+            shadow = '0 0 15px #ff4400, 0 0 30px #ffcc0066';
+            width = size * 4;
+            height = size * 2;
+          } else if (pj.type === 'rail') {
+            color = '#ffffff';
+            shadow = '0 0 8px #ffffff';
+            width = size * 10;
+            height = 2;
+          } else if (pj.type === 'heavy') {
+            color = '#fcd34d';
+            shadow = '0 0 6px #f59e0b';
+            width = size * 3;
+            height = size * 1.5;
+          }
+
           return (
             <div key={pj.id} className="projectile-ember" style={{
               left: x - viewportX,
               top: y - viewportY,
+              width, height,
+              background: color,
+              boxShadow: shadow,
               transform: `rotate(${angle}deg)`,
+              borderRadius: '50% 100% 100% 50% / 50% 100% 100% 50%',
             }} />
           );
         })}

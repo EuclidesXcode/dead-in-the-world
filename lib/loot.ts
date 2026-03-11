@@ -168,6 +168,53 @@ export const ITEM_DATABASE: Record<string, {
     stats: { craft_value: 1 },
     description: 'Essencial pra fazer munição', emoji: '🧨',
   },
+  // ---- ARMAS AVANÇADAS ----
+  plasma_rifle: {
+    item_id: 'plasma_rifle', item_name: 'Fuzil de Plasma', item_type: 'weapon',
+    weight: 5.0, rarity: 'epic',
+    stats: { damage: 45, range: 350, precision: 12, fire_rate: 6, ammo_type: 'energy_cell', magazine: 40, projectile_size: 6, bullet_type: 'plasma' },
+    description: 'Tecnologia experimental. Dispara pulsos energizados.', emoji: '🔫',
+  },
+  magnum: {
+    item_id: 'magnum', item_name: 'Magnum .44', item_type: 'weapon',
+    weight: 1.8, rarity: 'rare',
+    stats: { damage: 85, range: 200, precision: 10, fire_rate: 1.2, ammo_type: 'ammo_9mm', magazine: 6, projectile_size: 4, bullet_type: 'heavy' },
+    description: 'Poder de parada massivo em uma mão.', emoji: '🔫',
+  },
+  rocket_launcher: {
+    item_id: 'rocket_launcher', item_name: 'Lança-Foguetes RPG', item_type: 'weapon',
+    weight: 8.0, rarity: 'legendary',
+    stats: { damage: 250, range: 400, precision: 5, fire_rate: 0.2, ammo_type: 'rocket', magazine: 1, projectile_size: 10, bullet_type: 'rocket', splash_radius: 120 },
+    description: 'Para quando você cansa de fugir.', emoji: '🚀',
+  },
+  railgun: {
+    item_id: 'railgun', item_name: 'Canhão Elétrico (Railgun)', item_type: 'weapon',
+    weight: 7.5, rarity: 'legendary',
+    stats: { damage: 500, range: 800, precision: 30, fire_rate: 0.1, ammo_type: 'energy_cell', magazine: 1, projectile_size: 2, bullet_type: 'rail', pierce: true },
+    description: 'Aceleração magnética capaz de atravessar colunas de concreto.', emoji: '⚡',
+  },
+
+  // ---- MUNIÇÃO AVANÇADA ----
+  energy_cell: {
+    item_id: 'energy_cell', item_name: 'Célula de Energia', item_type: 'ammo',
+    weight: 0.05, rarity: 'rare',
+    stats: { ammo_type: 'energy_cell', quantity_per_pickup: 20 },
+    description: 'Fonte de energia para armas de plasma e railguns.', emoji: '🔋',
+  },
+  rocket: {
+    item_id: 'rocket', item_name: 'Míssil HE', item_type: 'ammo',
+    weight: 1.0, rarity: 'epic',
+    stats: { ammo_type: 'rocket', quantity_per_pickup: 1 },
+    description: 'Projétil explosivo de alto impacto.', emoji: '🚀',
+  },
+
+  // ---- MATERIAIS ADICIONAIS ----
+  electronics: {
+    item_id: 'electronics', item_name: 'Componentes Eletrônicos', item_type: 'material',
+    weight: 0.2, rarity: 'rare',
+    stats: { craft_value: 1 },
+    description: 'Circuitos necessários para upgrades de alta tecnologia.', emoji: '💾',
+  },
   drone: {
     item_id: 'drone', item_name: 'Controle de Drone', item_type: 'utility',
     weight: 0.8, rarity: 'rare',
@@ -203,7 +250,8 @@ const LOOT_TABLES: Record<TileType, Array<{ item_id: string; weight: number; qua
   market: [
     { item_id: 'canned_food', weight: 35, quantity: [2, 6] },
     { item_id: 'water_bottle', weight: 30, quantity: [2, 5] },
-    { item_id: 'energy_bar', weight: 20, quantity: [2, 5] },
+    { item_id: 'energy_bar', weight: 15, quantity: [2, 5] },
+    { item_id: 'electronics', weight: 8, quantity: [1, 2] },
     { item_id: 'ammo_9mm', weight: 10, quantity: [5, 15] },
     { item_id: 'knife', weight: 5, quantity: [1, 1] },
     { item_id: 'drone', weight: 5, quantity: [1, 1] },
@@ -213,10 +261,13 @@ const LOOT_TABLES: Record<TileType, Array<{ item_id: string; weight: number; qua
     { item_id: 'ammo_rifle', weight: 30, quantity: [10, 30] },
     { item_id: 'ammo_9mm', weight: 20, quantity: [15, 40] },
     { item_id: 'gunpowder', weight: 15, quantity: [2, 5] },
-    { item_id: 'silencer', weight: 10, quantity: [1, 1] },
-    { item_id: 'scope', weight: 10, quantity: [1, 1] },
-    { item_id: 'medkit', weight: 10, quantity: [1, 2] },
-    { item_id: 'drone', weight: 8, quantity: [1, 1] },
+    { item_id: 'railgun', weight: 1, quantity: [1, 1] },
+    { item_id: 'plasma_rifle', weight: 5, quantity: [1, 1] },
+    { item_id: 'rocket_launcher', weight: 2, quantity: [1, 1] },
+    { item_id: 'energy_cell', weight: 15, quantity: [10, 30] },
+    { item_id: 'rocket', weight: 8, quantity: [1, 2] },
+    { item_id: 'electronics', weight: 12, quantity: [1, 3] },
+    { item_id: 'drone', weight: 5, quantity: [1, 1] },
   ],
   forest: [
     { item_id: 'canned_food', weight: 40, quantity: [1, 3] },
@@ -234,6 +285,7 @@ const LOOT_TABLES: Record<TileType, Array<{ item_id: string; weight: number; qua
     { item_id: 'ammo_shotgun', weight: 15, quantity: [3, 8] },
     { item_id: 'scrap_metal', weight: 25, quantity: [3, 8] },
     { item_id: 'shotgun', weight: 8, quantity: [1, 1] },
+    { item_id: 'magnum', weight: 5, quantity: [1, 1] },
     { item_id: 'machete', weight: 12, quantity: [1, 1] },
     { item_id: 'bandage', weight: 15, quantity: [1, 3] },
   ],
@@ -260,6 +312,9 @@ export function generateZombieDrop(zx: number, zy: number): any | null {
     { item_id: 'ammo_shotgun', weight: 10 },
     { item_id: 'canned_food', weight: 8 },
     { item_id: 'pistol', weight: 2 },
+    { item_id: 'electronics', weight: 1 },
+    { item_id: 'magnum', weight: 0.5 },
+    { item_id: 'plasma_rifle', weight: 0.1 },
   ];
 
   const totalWeight = dropTable.reduce((s, i) => s + i.weight, 0);

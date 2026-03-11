@@ -9,6 +9,7 @@ const UPGRADE_ITEMS = ['silencer', 'extended_mag', 'scope', 'grip'];
 
 export default function WeaponUpgrade() {
   const { showWeaponUpgrade, toggleWeaponUpgrade, inventory, equippedWeapon, updateInventoryItem, removeInventoryItem, addNotification } = useGameStore();
+  const [activeTab, setActiveTab] = useState<'attachments' | 'refine'>('attachments');
   const [selectedUpgrade, setSelectedUpgrade] = useState<string | null>(null);
 
   if (!showWeaponUpgrade) return null;
@@ -17,9 +18,13 @@ export default function WeaponUpgrade() {
   const availableUpgrades = inventory.filter(i => UPGRADE_ITEMS.includes(i.item_id));
   const currentUpgrades: string[] = weapon?.upgrades || [];
 
+  const materials = {
+    scrap: inventory.find(i => i.item_id === 'scrap_metal'),
+    electronics: inventory.find(i => i.item_id === 'electronics'),
+  };
+
   const applyUpgrade = async (upgradeItem: InventoryItem) => {
     if (!weapon) return;
-
     const upDef = ITEM_DATABASE[upgradeItem.item_id];
     if (!upDef) return;
 
@@ -34,179 +39,188 @@ export default function WeaponUpgrade() {
       return;
     }
 
-    // Aplica o upgrade
     const newUpgrades = [...currentUpgrades, upgradeItem.item_id];
     const newStats = { ...weapon.stats };
 
-    // Aplica bônus do upgrade
     if (upDef.stats?.damage_mod) newStats.damage = (newStats.damage || 0) + upDef.stats.damage_mod;
     if (upDef.stats?.range_mod) newStats.range = (newStats.range || 0) + upDef.stats.range_mod;
     if (upDef.stats?.precision_mod) newStats.precision = (newStats.precision || 0) + upDef.stats.precision_mod;
     if (upDef.stats?.magazine_mod) newStats.magazine = (newStats.magazine || 0) + upDef.stats.magazine_mod;
 
     updateInventoryItem(weapon.id, { upgrades: newUpgrades, stats: newStats });
-
-    // Remove o item de upgrade do inventário
     if (upgradeItem.quantity <= 1) removeInventoryItem(upgradeItem.id);
     else updateInventoryItem(upgradeItem.id, { quantity: upgradeItem.quantity - 1 });
 
-    // Salva no banco
     await supabase.from('inventory').update({ upgrades: newUpgrades, stats: newStats }).eq('id', weapon.id);
-
     addNotification(`${upDef.item_name} instalado em ${weapon.item_name}!`, 'success');
-    setSelectedUpgrade(null);
   };
 
-  const getStatDiff = (upgradeId: string) => {
-    const def = ITEM_DATABASE[upgradeId];
-    if (!def) return [];
-    const diffs = [];
-    if (def.stats?.damage_mod) diffs.push({ label: 'DANO', value: def.stats.damage_mod });
-    if (def.stats?.range_mod) diffs.push({ label: 'ALCANCE', value: def.stats.range_mod });
-    if (def.stats?.precision_mod) diffs.push({ label: 'PRECISÃO', value: def.stats.precision_mod });
-    if (def.stats?.magazine_mod) diffs.push({ label: 'PENTE', value: def.stats.magazine_mod });
-    return diffs;
+  const handleRefine = async (stat: 'damage' | 'fire_rate' | 'range') => {
+    if (!weapon) return;
+
+    const refineLevel = (weapon.stats?.refine_level || 0);
+    const scrapCost = 5 + (refineLevel * 3);
+    const electronicCost = refineLevel >= 3 ? Math.floor(refineLevel / 2) : 0;
+
+    if ((materials.scrap?.quantity || 0) < scrapCost) {
+      addNotification(`Sucata insuficiente! Precisa de ${scrapCost}`, 'warning');
+      return;
+    }
+    if (electronicCost > 0 && (materials.electronics?.quantity || 0) < electronicCost) {
+      addNotification(`Eletrônicos insuficientes! Precisa de ${electronicCost}`, 'warning');
+      return;
+    }
+
+    const newStats = { ...weapon.stats };
+    newStats.refine_level = refineLevel + 1;
+
+    if (stat === 'damage') {
+      newStats.damage = (newStats.damage || 0) + 5;
+      newStats.projectile_size = (newStats.projectile_size || 3) + 0.5;
+    } else if (stat === 'fire_rate') {
+      newStats.fire_rate = (newStats.fire_rate || 1) + 0.2;
+    } else if (stat === 'range') {
+      newStats.range = (newStats.range || 100) + 25;
+    }
+
+    // Consumir materiais
+    if (materials.scrap) {
+       if (materials.scrap.quantity <= scrapCost) removeInventoryItem(materials.scrap.id);
+       else updateInventoryItem(materials.scrap.id, { quantity: materials.scrap.quantity - scrapCost });
+    }
+    if (electronicCost > 0 && materials.electronics) {
+       if (materials.electronics.quantity <= electronicCost) removeInventoryItem(materials.electronics.id);
+       else updateInventoryItem(materials.electronics.id, { quantity: materials.electronics.quantity - electronicCost });
+    }
+
+    updateInventoryItem(weapon.id, { stats: newStats });
+    await supabase.from('inventory').update({ stats: newStats }).eq('id', weapon.id);
+    addNotification(`${weapon.item_name} refinado! +Level de ${stat}`, 'success');
   };
 
   return (
     <div className="modal-overlay" onClick={toggleWeaponUpgrade}>
       <div
         className="modal-content retro-panel"
-        style={{ width: 'min(520px, 96vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+        style={{ width: 'min(580px, 96vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: '#8b0000' }}>
-          <div className="pixel-font text-yellow-500" style={{ fontSize: 11 }}>🔫 UPGRADE DE ARMA</div>
+        <div className="flex items-center justify-between p-4 border-b border-[#8b000033]">
+          <div className="pixel-font text-yellow-500" style={{ fontSize: 11 }}>⚙️ BANCADA DE ARMAS</div>
           <button className="btn-retro btn-retro-red" onClick={toggleWeaponUpgrade} style={{ padding: '4px 8px', fontSize: 9 }}>✕</button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-          {/* Arma equipada */}
+        {/* Tabs */}
+        <div className="flex p-2 gap-2 bg-black/40">
+           <button 
+             onClick={() => setActiveTab('attachments')}
+             className={`flex-1 py-2 pixel-font text-[9px] transition-all border ${activeTab === 'attachments' ? 'border-[#f59e0b] text-[#f59e0b] bg-[#f59e0b11]' : 'border-white/10 text-white/40'}`}
+           >ACESSÓRIOS</button>
+           <button 
+             onClick={() => setActiveTab('refine')}
+             className={`flex-1 py-2 pixel-font text-[9px] transition-all border ${activeTab === 'refine' ? 'border-[#39ff14] text-[#39ff14] bg-[#39ff1411]' : 'border-white/10 text-white/40'}`}
+           >REFINO TÉCNICO</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
           {!weapon ? (
-            <div style={{ textAlign: 'center', padding: 32, color: '#444', fontFamily: "'Press Start 2P', monospace", fontSize: 9 }}>
-              Nenhuma arma equipada.<br />
-              <span style={{ color: '#555', fontSize: 8, fontFamily: "'Share Tech Mono', monospace", display: 'block', marginTop: 8 }}>
-                Equipe uma arma no inventário primeiro.
-              </span>
-            </div>
+            <div className="text-center py-12 opacity-40 pixel-font text-[9px]">EQUIPE UMA ARMA PRIMEIRO</div>
           ) : (
             <>
-              {/* Info da arma atual */}
-              <div className="retro-panel-green p-4 mb-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <span style={{ fontSize: 28 }}>🔫</span>
-                  <div>
-                    <div className="pixel-font" style={{ fontSize: 10, color: '#fff' }}>{weapon.item_name}</div>
-                    <div style={{ fontSize: 9, color: RARITY_CONFIG[weapon.rarity].color, fontFamily: "'Share Tech Mono', monospace" }}>
-                      {RARITY_CONFIG[weapon.rarity].label.toUpperCase()}
+              {/* Weapon Info Header */}
+              <div className="retro-panel-green p-4 mb-6 border-l-4 border-l-[#39ff14]">
+                 <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-4">
+                       <span className="text-4xl">{weapon.item_id === 'rocket_launcher' ? '🚀' : '🔫'}</span>
+                       <div>
+                          <div className="pixel-font text-white text-[12px] mb-1">{weapon.item_name.toUpperCase()}</div>
+                          <div className="flex gap-2">
+                             <span className="px-2 py-0.5 bg-black/50 text-[8px] text-[#f59e0b] border border-[#f59e0b33] rounded">LVL {weapon.stats?.refine_level || 0}</span>
+                             <span className="px-2 py-0.5 bg-black/50 text-[8px] text-[#aaa] border border-white/10 rounded">{RARITY_CONFIG[weapon.rarity].label}</span>
+                          </div>
+                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Stats atuais */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {[
-                    { label: 'DANO', value: weapon.stats?.damage },
-                    { label: 'ALCANCE', value: weapon.stats?.range, suffix: 'm' },
-                    { label: 'PRECISÃO', value: weapon.stats?.precision },
-                    { label: 'PENTE', value: weapon.stats?.magazine || '∞' },
-                  ].map(({ label, value, suffix = '' }) => (
-                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontFamily: "'Share Tech Mono', monospace" }}>
-                      <span style={{ color: '#555' }}>{label}:</span>
-                      <span style={{ color: '#f59e0b' }}>{value}{suffix}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Upgrades instalados */}
-                {currentUpgrades.length > 0 && (
-                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(74,124,89,0.3)' }}>
-                    <div style={{ fontSize: 7, color: '#555', fontFamily: "'Share Tech Mono', monospace", marginBottom: 6 }}>UPGRADES INSTALADOS</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {currentUpgrades.map(upId => (
-                        <div key={upId} style={{
-                          background: 'rgba(74,124,89,0.2)', border: '1px solid rgba(74,124,89,0.4)',
-                          padding: '2px 8px', fontSize: 8, color: '#4a7c59',
-                          fontFamily: "'Share Tech Mono', monospace",
-                        }}>
-                          {ITEM_DATABASE[upId]?.item_name || upId}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                 </div>
+                 
+                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                      { label: 'DANO', val: weapon.stats?.damage, color: '#ff4444' },
+                      { label: 'RANGE', val: weapon.stats?.range + 'm', color: '#3b82f6' },
+                      { label: 'FIRE-RATE', val: weapon.stats?.fire_rate, color: '#39ff14' },
+                      { label: 'PROJ-SIZE', val: (weapon.stats?.projectile_size || 3).toFixed(1), color: '#00f2ff' }
+                    ].map(s => (
+                      <div key={s.label} className="bg-black/30 p-2 rounded">
+                         <div className="text-[7px] text-white/40 mb-1">{s.label}</div>
+                         <div className="pixel-font text-[10px]" style={{ color: s.color }}>{s.val}</div>
+                      </div>
+                    ))}
+                 </div>
               </div>
 
-              {/* Upgrades disponíveis */}
-              <div className="pixel-font mb-3" style={{ fontSize: 8, color: '#666' }}>UPGRADES NO INVENTÁRIO</div>
-
-              {availableUpgrades.length === 0 ? (
-                <div style={{ color: '#333', fontSize: 10, fontFamily: "'Share Tech Mono', monospace", textAlign: 'center', padding: 16 }}>
-                  Nenhum upgrade disponível.<br />Explore o mapa para encontrar upgrades!
+              {activeTab === 'attachments' ? (
+                <div className="space-y-3">
+                   {availableUpgrades.length === 0 ? (
+                     <div className="text-center py-8 text-white/20 text-[10px]">ENCONTRE ACESSÓRIOS (MIRAS, PENTES) NO MAPA</div>
+                   ) : (
+                     availableUpgrades.map(up => (
+                       <div key={up.id} className="flex items-center justify-between p-3 bg-white/5 border border-white/10 hover:border-[#f59e0b] transition-all group">
+                          <div className="flex items-center gap-3">
+                             <span className="text-2xl">{ITEM_DATABASE[up.item_id]?.emoji}</span>
+                             <div>
+                                <div className="text-white text-[10px] font-bold">{up.item_name}</div>
+                                <div className="text-[8px] text-white/30 uppercase">{ITEM_DATABASE[up.item_id]?.description}</div>
+                             </div>
+                          </div>
+                          <button 
+                            className="bg-[#f59e0b] text-black px-4 py-1.5 pixel-font text-[8px] hover:scale-105 active:scale-95 transition-all"
+                            onClick={() => applyUpgrade(up)}
+                          >INSTALAR</button>
+                       </div>
+                     ))
+                   )}
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {availableUpgrades.map(upgrade => {
-                    const def = ITEM_DATABASE[upgrade.item_id];
-                    const compatible = def?.stats?.compatible || [];
-                    const isCompat = compatible.includes(weapon.item_id);
-                    const alreadyApplied = currentUpgrades.includes(upgrade.item_id);
-                    const diffs = getStatDiff(upgrade.item_id);
-                    const isSelected = selectedUpgrade === upgrade.id;
-
-                    return (
-                      <div
-                        key={upgrade.id}
-                        onClick={() => !alreadyApplied && isCompat && setSelectedUpgrade(isSelected ? null : upgrade.id)}
-                        style={{
-                          padding: '10px 14px',
-                          background: isSelected ? 'rgba(74,124,89,0.15)' : 'rgba(20,20,20,0.8)',
-                          border: `1px solid ${alreadyApplied ? '#2a4a2a' : isCompat ? '#4a7c59' : '#333'}`,
-                          cursor: isCompat && !alreadyApplied ? 'pointer' : 'default',
-                          opacity: !isCompat || alreadyApplied ? 0.5 : 1,
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ fontSize: 20 }}>{def?.emoji || '⚙️'}</span>
-                            <div>
-                              <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: '#fff' }}>{upgrade.item_name}</div>
-                              <div style={{ fontSize: 9, color: '#555', fontFamily: "'Share Tech Mono', monospace', marginTop: 2" }}>
-                                {alreadyApplied ? '✓ Já instalado' : !isCompat ? '✕ Incompatível' : 'Compatível ✓'}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Bônus de stats */}
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            {diffs.map(({ label, value }) => (
-                              <div key={label} style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: 7, color: '#555', fontFamily: "'Share Tech Mono', monospace" }}>{label}</div>
-                                <div style={{ fontSize: 10, color: value > 0 ? '#22c55e' : '#dc2626', fontFamily: "'Press Start 2P', monospace" }}>
-                                  {value > 0 ? '+' : ''}{value}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Botão de instalar (quando selecionado) */}
-                        {isSelected && isCompat && !alreadyApplied && (
-                          <div className="flex justify-end mt-3">
-                            <button
-                              className="btn-retro btn-retro-green"
-                              onClick={(e) => { e.stopPropagation(); applyUpgrade(upgrade); }}
-                              style={{ fontSize: 8, padding: '6px 16px' }}
-                            >
-                              INSTALAR
-                            </button>
-                          </div>
-                        )}
+                <div className="space-y-4">
+                   <div className="flex gap-4 p-3 bg-[#39ff1408] border border-[#39ff1422] justify-center">
+                      <div className="text-center">
+                         <div className="text-[7px] text-white/40 mb-1">SUCATA</div>
+                         <div className="pixel-font text-[#39ff14] text-[10px]">{materials.scrap?.quantity || 0}</div>
                       </div>
-                    );
-                  })}
+                      <div className="w-[1px] bg-white/10" />
+                      <div className="text-center">
+                         <div className="text-[7px] text-white/40 mb-1">ELETRÔNICOS</div>
+                         <div className="pixel-font text-[#00f2ff] text-[10px]">{materials.electronics?.quantity || 0}</div>
+                      </div>
+                   </div>
+
+                   <div className="space-y-2">
+                      {[
+                        { id: 'damage' as const, label: 'REFORÇAR CANO', sub: 'Aumenta Dano e Tamanho do Projétil', icon: '🔥' },
+                        { id: 'fire_rate' as const, label: 'SISTEMA DE GATILHO', sub: 'Melhora Cadência de Disparo', icon: '⚡' },
+                        { id: 'range' as const, label: 'MIRA LASER', sub: 'Aumenta Alcance Efetivo', icon: '🔭' },
+                      ].map(r => {
+                        const cost = 5 + ((weapon.stats?.refine_level || 0) * 3);
+                        const eCost = (weapon.stats?.refine_level || 0) >= 3 ? Math.floor((weapon.stats?.refine_level || 0) / 2) : 0;
+                        return (
+                          <div key={r.id} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 hover:border-[#39ff14] transition-all">
+                             <div className="flex items-center gap-4">
+                                <span className="text-2xl">{r.icon}</span>
+                                <div>
+                                   <div className="text-white text-[10px] font-bold">{r.label}</div>
+                                   <div className="text-[8px] text-white/30">{r.sub}</div>
+                                </div>
+                             </div>
+                             <button 
+                               onClick={() => handleRefine(r.id)}
+                               className="bg-[#39ff14] text-black p-2 pixel-font text-[8px] flex flex-col items-center gap-1 min-w-[80px]"
+                             >
+                                <span>REFINAR</span>
+                                <span className="text-[7px] opacity-70">-{cost}🔩{eCost > 0 ? ` -${eCost}💾` : ''}</span>
+                             </button>
+                          </div>
+                        )
+                      })}
+                   </div>
                 </div>
               )}
             </>
