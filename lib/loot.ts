@@ -407,20 +407,23 @@ export function generateTileLoot(
 }
 
 // Peso máximo do inventário
-export const MAX_INVENTORY_WEIGHT = 25;
+export const MAX_INVENTORY_SLOTS = 300;
+export const EXPANDED_INVENTORY_SLOTS = 1000;
 
 // Calcula peso total do inventário
-export function calculateInventoryWeight(items: InventoryItem[]): number {
-  return items.reduce((sum, item) => sum + item.weight * item.quantity, 0);
+export function calculateInventorySlots(items: InventoryItem[]): number {
+  return items.reduce((sum, item) => sum + item.quantity, 0);
 }
 
 // Verifica se pode pegar item
 export function canPickupItem(
   currentItems: InventoryItem[],
-  newItem: { weight: number; quantity: number }
+  newItem: { quantity: number },
+  hasExpanded: boolean = false
 ): boolean {
-  const currentWeight = calculateInventoryWeight(currentItems);
-  return currentWeight + newItem.weight * newItem.quantity <= MAX_INVENTORY_WEIGHT;
+  const currentSlots = calculateInventorySlots(currentItems);
+  const maxSlots = hasExpanded ? EXPANDED_INVENTORY_SLOTS : MAX_INVENTORY_SLOTS;
+  return currentSlots + newItem.quantity <= maxSlots;
 }
 
 // Informações de raridade

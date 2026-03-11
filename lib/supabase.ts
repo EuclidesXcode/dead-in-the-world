@@ -95,6 +95,7 @@ export interface Player {
   last_seen: string;
   custom_css?: string;
   name_color?: string;
+  has_expanded_inventory?: boolean;
   created_at: string;
 }
 

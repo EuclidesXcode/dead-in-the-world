@@ -264,11 +264,20 @@ export default function GameCanvas() {
     const interval = setInterval(() => {
        if (!hordeActive) {
           useGameStore.getState().addNotification('⚠️ ALERTA: IMENSA HORDA DE ZUMBIS SE APROXIMANDO!', 'danger');
-          
           setHordeActive(true);
-          setHordeTimer(60); // 1 minuto de frenesi de spawns
+          setHordeTimer(60);
 
-          // Os zumbis spawnam freneticamente no scheduleSpawn porque maxZombies aumenta e ele roda mais vezes.
+          // Spawna instantaneamente entre 25 e 40 zumbis
+          const spawnCount = Math.floor(Math.random() * 16) + 25; // 25 a 40
+          const level = useGameStore.getState().player?.level || 1;
+          for (let i = 0; i < spawnCount; i++) {
+            const newZ = createSpawnZombie(
+               playerPosRef.current.x, playerPosRef.current.y,
+               originTileRef.current.x, originTileRef.current.y,
+               level, isPointOnWalkableRoad
+            );
+            if (newZ) useGameStore.getState().setZombie(newZ as any);
+          }
        }
     }, 600000);
     return () => clearInterval(interval);
@@ -1176,10 +1185,10 @@ export default function GameCanvas() {
           opacity: activeWeaponSlot === 'explosive' ? 1 : 0.6
         }}>
           <span style={{ opacity: 0.5 }}>3</span>
-          <span>{useGameStore.getState().inventory.find(i => i.item_type === 'explosive') ? itemEmoji(useGameStore.getState().inventory.find(i => i.item_type === 'explosive')!.item_id) : '💥'}</span>
+          <span>{inventory.find(i => i.item_type === 'explosive') ? itemEmoji(inventory.find(i => i.item_type === 'explosive')!.item_id) : '💥'}</span>
           <span>
-            {useGameStore.getState().inventory.find(i => i.item_type === 'explosive') 
-              ? `${useGameStore.getState().inventory.find(i => i.item_type === 'explosive')?.item_name} (${useGameStore.getState().inventory.find(i => i.item_type === 'explosive')?.quantity})` 
+            {inventory.find(i => i.item_type === 'explosive') 
+              ? `${inventory.find(i => i.item_type === 'explosive')?.item_name} (${inventory.find(i => i.item_type === 'explosive')?.quantity})` 
               : 'Sem Explosivo'
             }
           </span>

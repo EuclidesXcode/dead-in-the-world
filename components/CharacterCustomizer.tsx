@@ -283,7 +283,7 @@ export default function CharacterCustomizer() {
                   }}>
                     <div className="pixel-font" style={{ fontSize: 14, color: '#f59e0b', marginBottom: 16 }}>🔒 RECURSO BLOQUEADO</div>
                     <div style={{ fontSize: 10, color: '#fff', marginBottom: 20, maxWidth: 300, lineHeight: 1.5 }}>
-                      O acesso ao CSS Expert requer um pagamento único de <span style={{ color: '#39ff14' }}>R$ 2,00</span> para manutenção dos servidores.
+                      O acesso ao CSS Expert requer um pagamento único de <span style={{ color: '#39ff14' }}>R$ 1,99</span> para manutenção dos servidores.
                     </div>
                     
                     <div style={{ background: '#000', padding: 12, border: '1px solid #333', width: '100%', marginBottom: 12 }}>
