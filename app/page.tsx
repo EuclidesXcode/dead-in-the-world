@@ -103,6 +103,7 @@ export default function LandingPage() {
   const [scanY, setScanY] = useState(0);
   const [blink, setBlink] = useState(true);
   const [globalStats, setGlobalStats] = useState({ zombies: 0, tiles: 0, players: 0 });
+  const [showDonation, setShowDonation] = useState(false);
 
   // Animação scanline
   useEffect(() => {
@@ -259,7 +260,7 @@ export default function LandingPage() {
           </div>
 
           {/* Terminal de Login */}
-          <div className="retro-panel p-8 w-full mb-8" style={{ position: 'relative' }}>
+          <div className="retro-panel p-8 w-full mb-6" style={{ position: 'relative' }}>
             <div className="pixel-font text-center mb-6 text-red-500" style={{ fontSize: 9 }}>
               {'>'} LOGIN_TERMINAL {blink ? '_' : ' '}
             </div>
@@ -289,6 +290,61 @@ export default function LandingPage() {
               {signing ? 'CONECTANDO...' : 'ENTRAR COM GOOGLE'}
             </button>
           </div>
+
+          {/* Opção de Doação */}
+          <button
+            onClick={() => setShowDonation(true)}
+            className="mb-8 flex items-center gap-2 px-4 py-2 border border-[#f59e0b44] bg-[#f59e0b05] hover:bg-[#f59e0b11] transition-all"
+            style={{ borderRadius: 4 }}
+          >
+            <span className="text-[#f59e0b] text-[10px] pixel-font">☕ APOIAR O PROJETO</span>
+          </button>
+
+          {/* Modal de Doação (PIX) */}
+          {showDonation && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)' }}>
+              <div className="retro-panel p-8 max-w-md w-full relative" onClick={e => e.stopPropagation()}>
+                <button 
+                  onClick={() => setShowDonation(false)}
+                  className="absolute top-4 right-4 text-[#444] hover:text-white pixel-font text-[10px]"
+                >✕</button>
+                
+                <div className="text-center mb-6">
+                  <div className="pixel-font text-[#f59e0b] mb-2" style={{ fontSize: 12 }}>DOAÇÃO VIA PIX</div>
+                  <div className="text-[10px] text-[#888]">Ajude a manter os servidores ativos e o desenvolvimento constante!</div>
+                </div>
+
+                <div className="bg-white p-4 mb-6 rounded-lg flex justify-center mx-auto" style={{ width: 180, height: 180 }}>
+                   {/* QR Code Placeholder ou Instrução */}
+                   <div className="text-black text-[8px] text-center flex flex-col items-center justify-center gap-2">
+                      <span className="text-2xl">📱</span>
+                      <span className="font-bold">ESCANEIE O QR CODE</span>
+                      <span className="opacity-50">OU COPIE O CÓDIGO ABAIXO</span>
+                   </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-3 bg-black/50 border border-white/10 rounded text-[9px] break-all font-mono text-[#aaa] max-h-[100px] overflow-y-auto">
+                    00020101021126580014br.gov.bcb.pix01366c83942f-54fb-4f40-aabb-e44ca2f84f1a5204000053039865802BR5925EUCLIDES RUFO SILVA DO NA6008BRASILIA62080504SXQR6304A51D
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText('00020101021126580014br.gov.bcb.pix01366c83942f-54fb-4f40-aabb-e44ca2f84f1a5204000053039865802BR5925EUCLIDES RUFO SILVA DO NA6008BRASILIA62080504SXQR6304A51D');
+                      alert('Código PIX copiado!');
+                    }}
+                    className="w-full py-3 bg-[#f59e0b] text-black pixel-font text-[9px] hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  >
+                    COPIAR CÓDIGO PIX
+                  </button>
+                </div>
+
+                <div className="mt-6 text-center text-[8px] text-[#444] pixel-font">
+                  OBRIGADO PELO APOIO, SOBREVIVENTE!
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Footer */}
           <div className="text-center space-y-2">
