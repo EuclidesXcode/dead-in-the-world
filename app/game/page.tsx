@@ -15,6 +15,9 @@ import CharacterCustomizer from '@/components/CharacterCustomizer';
 import Chat from '@/components/Chat';
 import Notifications from '@/components/Notifications';
 import TouchControls from '@/components/TouchControls';
+import WeaponUpgrade from '@/components/WeaponUpgrade';
+import WorldMap from '@/components/WorldMap';
+import ProximityVoice from '@/components/ProximityVoice';
 import { MapTile, Player } from '@/lib/supabase';
 import { GAME_TILE_PX } from '@/lib/osmTiles';
 
@@ -34,6 +37,7 @@ export default function GamePage() {
     viewportX, viewportY,
     playerPixelX, playerPixelY,
     isNight, setIsNight,
+    showMap, toggleMap,
   } = useGameStore();
 
   const [status, setStatus] = useState<LoadStatus>('auth');
@@ -53,6 +57,23 @@ export default function GamePage() {
     checkTime();
     const interval = setInterval(checkTime, 60000); // Check every minute
     return () => clearInterval(interval);
+  }, []);
+
+  // ── 1.5. Escape key listener ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        const state = useGameStore.getState();
+        if (state.showInventory) state.toggleInventory();
+        if (state.showCharCustomizer) state.toggleCharCustomizer();
+        if (state.showWeaponUpgrade) state.toggleWeaponUpgrade();
+        if (state.showMap) state.toggleMap();
+        if (state.showLeaderboard) state.toggleLeaderboard();
+        if (state.showChat) state.toggleChat();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const initGame = async () => {
@@ -470,7 +491,20 @@ export default function GamePage() {
       <Inventory />
       <Leaderboard />
       <CharacterCustomizer />
+      <WeaponUpgrade />
       <Chat />
+      
+      {showMap && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)' }}>
+          <div style={{ position: 'absolute', top: 16, right: 16, color: '#fff', cursor: 'pointer', fontSize: 24, zIndex: 1010 }} onClick={toggleMap}>✖</div>
+          <div style={{ width: '90%', height: '80%', background: '#050505', border: '2px solid #333' }}>
+             <WorldMap />
+          </div>
+        </div>
+      )}
+
+      {/* Voz por proximidade */}
+      <ProximityVoice />
 
       {/* Notificações */}
       <Notifications />
