@@ -160,14 +160,20 @@ function WeedCluster({ cx, cy, size, rand }: { cx: number; cy: number; size: num
 
 /* ── Prédio 3D fake (Extrusão SVG) ── */
 function Building3D({ pts, height = 25, color = '#151515', id }: { pts: { x: number; y: number }[], height?: number, color?: string, id: string | number }) {
-  const offsetX = -height * 0.2;
-  const offsetY = -height * 0.4;
-  const roofPts = pts.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
-  
+  // Configuração do Sol (Fim de tarde: Baixo e vindo do Oeste/Esquerda)
+  const sunAngleX = -0.5; 
+  const sunAngleY = -0.6; 
+  const shadowLen = height * 1.1;
+  const roofOffsetX = sunAngleX * height * 0.45;
+  const roofOffsetY = sunAngleY * height * 0.45;
+
+  const roofPts = pts.map(p => ({ x: p.x + roofOffsetX, y: p.y + roofOffsetY }));
+  const shadowPts = pts.map(p => ({ x: p.x + sunAngleX * shadowLen, y: p.y - sunAngleY * shadowLen }));
+
   return (
     <g key={`b3d-${id}`}>
-      {/* Sombra projetada no chão */}
-      <polygon points={pts.map(p => `${p.x + 8},${p.y + 8}`).join(' ')} fill="rgba(0,0,0,0.3)" />
+      {/* Sombra projetada (Longa e levemente âmbar) */}
+      <polygon points={shadowPts.map(p => `${p.x},${p.y}`).join(' ')} fill="rgba(30,15,5,0.45)" style={{ filter: 'blur(2px)' }} />
       
       {/* Paredes laterais */}
       {pts.map((p, i) => {
@@ -175,22 +181,25 @@ function Building3D({ pts, height = 25, color = '#151515', id }: { pts: { x: num
         const p1 = p; const p2 = pts[nextIdx];
         const r1 = roofPts[i]; const r2 = roofPts[nextIdx];
         
-        // Brilho fake baseado na direção da parede
+        // Brilho facetado baseado no sol
         const dx = p2.x - p1.x; const dy = p2.y - p1.y;
         const ang = Math.atan2(dy, dx);
-        const b = 0.5 + Math.abs(Math.cos(ang)) * 0.5;
+        // Face voltada para o sol (Oeste) fica mais clara
+        const sunDot = Math.cos(ang - Math.PI); 
+        const brightness = 0.4 + (sunDot + 1) * 0.45;
+        const wallColor = brightness > 0.8 ? '#332a20' : color;
         
         return (
           <polygon key={i} points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${r2.x},${r2.y} ${r1.x},${r1.y}`} 
-            fill={color} style={{ filter: `brightness(${b.toFixed(2)})` }} stroke="rgba(0,0,0,0.4)" strokeWidth="0.5" />
+            fill={wallColor} style={{ filter: `brightness(${brightness.toFixed(2)})` }} stroke="rgba(0,0,0,0.5)" strokeWidth="0.5" />
         );
       })}
       
-      {/* Teto */}
-      <polygon points={roofPts.map(p => `${p.x},${p.y}`).join(' ')} fill={color} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+      {/* Teto (Objeto Sólido para colisão) */}
+      <polygon className="solid-object" points={roofPts.map(p => `${p.x},${p.y}`).join(' ')} fill={color} stroke="rgba(255,160,50,0.1)" strokeWidth="1" />
       
       {/* Detalhes de ruína no teto */}
-      <rect x={roofPts[0].x + 5} y={roofPts[0].y + 5} width={12} height={8} fill="rgba(0,0,0,0.5)" rx="1" />
+      <rect x={roofPts[0].x + 5} y={roofPts[0].y + 5} width={12} height={8} fill="rgba(0,0,0,0.6)" rx="1" />
     </g>
   );
 }
@@ -205,14 +214,14 @@ function SmallProp({ cx, cy, type, rand }: { cx: number; cy: number; type: 'shac
     return (
        <g transform={`translate(${cx},${cy}) rotate(${(rand() * 360).toFixed(1)})`}>
          {/* Sombra */}
-         <rect x={-w/2+4} y={-h/2+4} width={w} height={h} fill="rgba(0,0,0,0.4)" />
+         <rect x={12} y={10} width={w} height={h} fill="rgba(20,10,0,0.4)" style={{ filter: 'blur(1px)' }} />
          {/* Parede lateral fake */}
-         <rect x={-w/2} y={-h/2} width={w} height={h} fill={color} filter="brightness(0.7)" />
-         {/* Teto do container */}
-         <rect x={-w/2-3} y={-h/2-5} width={w} height={h} fill={color} stroke="#111" />
+         <rect x={-w/2} y={-h/2} width={w} height={h} fill={color} filter="brightness(0.6)" />
+         {/* Teto do container (Solid Object) */}
+         <rect className="solid-object" x={-w/2-5} y={-h/2-8} width={w} height={h} fill={color} stroke="#111" />
          {/* Frisos do container */}
          {[1, 2, 3, 4, 5].map(i => (
-           <line key={i} x1={-w/2-3 + (i*w/6)} y1={-h/2-5} x2={-w/2-3 + (i*w/6)} y2={-h/2-5+h} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+           <line key={i} x1={-w/2-5 + (i*w/6)} y1={-h/2-8} x2={-w/2-5 + (i*w/6)} y2={-h/2-8+h} stroke="rgba(255,200,100,0.08)" strokeWidth="1" />
          ))}
        </g>
     );
@@ -222,12 +231,12 @@ function SmallProp({ cx, cy, type, rand }: { cx: number; cy: number; type: 'shac
     return (
       <g transform={`translate(${cx},${cy})`}>
         {/* Sombra */}
-        <rect x={-12} y={-12} width={24} height={24} fill="rgba(0,0,0,0.3)" />
+        <rect x={8} y={8} width={24} height={24} fill="rgba(20,10,0,0.35)" style={{ filter: 'blur(1px)' }} />
         {/* Paredes */}
         <rect x={-10} y={-10} width={20} height={20} fill="#2a1f1a" stroke="#111" />
-        {/* Teto inclinado (zinc/ferrugem) */}
-        <polygon points="-12,-12 12,-15 15,10 -10,12" fill="#3a3a3a" stroke="#222" />
-        <line x1={-12} y1={-12} x2={15} y2={10} stroke="rgba(255,255,255,0.05)" />
+        {/* Teto (Solid Object) */}
+        <polygon className="solid-object" points="-12,-12 12,-15 15,10 -10,12" fill="#3a3a2a" stroke="#222" />
+        <line x1={-12} y1={-12} x2={15} y2={10} stroke="rgba(255,180,100,0.1)" />
       </g>
     );
   }
@@ -341,7 +350,13 @@ export default function StreetMap({
       {/* ── SVG Principal ── */}
       <svg
         id="street-map-svg"
-        style={{ position: 'absolute', left: -buffer, top: -buffer, width: svgViewW, height: svgViewH, overflow: 'visible' }}
+        style={{ 
+          position: 'absolute', 
+          left: -buffer, top: -buffer, 
+          width: svgViewW, height: svgViewH, 
+          overflow: 'visible',
+          filter: 'sepia(0.2) saturate(1.3) contrast(1.05) drop-shadow(0 0 20px rgba(255,100,0,0.05))'
+        }}
         viewBox={`${svgViewX} ${svgViewY} ${svgViewW} ${svgViewH}`}
       >
         <defs>

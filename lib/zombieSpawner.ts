@@ -38,23 +38,25 @@ const SPAWN_CONFIG = {
 
 // ── Type de zumbi ponderado por area e nível ──
 export function pickZombieType(avgLevel: number): string {
-  // Quanto maior o nível, mais tanques e runners aparecem
   const roll = Math.random() * 100;
   if (avgLevel >= 10) {
-    if (roll < 5) return 'Tank';
-    if (roll < 20) return 'Screamer';
-    if (roll < 45) return 'Runner';
-    return 'Walker';
+    if (roll < 10) return 'tank';
+    if (roll < 25) return 'screamer';
+    if (roll < 45) return 'leaper'; // Novo tipo
+    if (roll < 70) return 'runner';
+    return 'walker';
   } else if (avgLevel >= 5) {
-    if (roll < 3) return 'Tank';
-    if (roll < 15) return 'Screamer';
-    if (roll < 35) return 'Runner';
-    return 'Walker';
+    if (roll < 5) return 'tank';
+    if (roll < 15) return 'screamer';
+    if (roll < 30) return 'leaper';
+    if (roll < 55) return 'runner';
+    return 'walker';
   } else {
-    if (roll < 1) return 'Tank';
-    if (roll < 8) return 'Screamer';
-    if (roll < 20) return 'Runner';
-    return 'Walker';
+    if (roll < 2) return 'tank';
+    if (roll < 8) return 'screamer';
+    if (roll < 15) return 'leaper';
+    if (roll < 35) return 'runner';
+    return 'walker';
   }
 }
 

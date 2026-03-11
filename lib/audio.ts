@@ -58,6 +58,13 @@ class AudioManager {
       this.hurtSfx.play();
     }
   }
+
+  public playZombieGasp() {
+    if (this.hurtSfx) {
+      this.hurtSfx.rate(0.5); // Mais lento/grave para susto
+      this.hurtSfx.play();
+    }
+  }
 }
 
 export const audioSystem = typeof window !== 'undefined' ? new AudioManager() : null;

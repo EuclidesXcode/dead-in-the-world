@@ -59,7 +59,7 @@ export type TileType =
   | 'ruins'
   | 'abandoned';
 
-export type ZombieType = 'walker' | 'runner' | 'tank' | 'screamer';
+export type ZombieType = 'walker' | 'runner' | 'tank' | 'screamer' | 'leaper';
 export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 export type ItemType = 'weapon' | 'ammo' | 'heal' | 'food' | 'water' | 'upgrade' | 'material';
 
@@ -127,6 +127,9 @@ export interface Zombie {
   is_alive: boolean;
   target_player_id?: string;
   direction: number;
+  is_jumping?: boolean;
+  jump_cooldown?: number;
+  jump_progress?: number;
 }
 
 export interface InventoryItem {

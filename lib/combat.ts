@@ -41,14 +41,23 @@ export const ZOMBIE_STATS: Record<ZombieType, {
     attack_range: 30,
     detection_range: 350,
   },
+  leaper: {
+    max_health: 45,
+    damage: 15,
+    speed: 1.2,
+    xp_reward: 25,
+    attack_range: 30,
+    detection_range: 300,
+  },
 };
 
 // Pesos para selecionar tipo de zumbi
 export const ZOMBIE_SPAWN_WEIGHTS: Record<ZombieType, number> = {
-  walker: 55,
-  runner: 25,
+  walker: 45,
+  runner: 20,
   tank: 10,
   screamer: 10,
+  leaper: 15,
 };
 
 // Seleciona tipo de zumbi aleatoriamente

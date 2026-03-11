@@ -39,6 +39,15 @@ const isPointOnWalkableRoad = (worldX: number, worldY: number) => {
   const pt = svg.createSVGPoint();
   pt.x = worldX;
   pt.y = worldY;
+
+  // 1. Checa se está DENTRO de um objeto sólido (prédio/container)
+  const solids = document.querySelectorAll('.solid-object');
+  for (let i = 0; i < solids.length; i++) {
+    const el = solids[i] as any;
+    if (el.isPointInFill(pt)) return false;
+  }
+
+  // 2. Se não estiver em sólido, checa se está em área caminhável
   const roads = document.querySelectorAll('.walkable-road');
   for (let i = 0; i < roads.length; i++) {
     const el = roads[i] as any;
@@ -87,6 +96,8 @@ export default function GameCanvas() {
   const [windowSize, setWindowSize] = useState({ w: 800, h: 600 });
   const [currentTarget, setCurrentTarget] = useState<string | null>(null);
   const [projectiles, setProjectiles] = useState<VisualProjectile[]>([]);
+  const [hordeActive, setHordeActive] = useState(false);
+  const [hordeTimer, setHordeTimer] = useState(0);
 
   // ── Window size ──
   useEffect(() => {
@@ -240,6 +251,11 @@ export default function GameCanvas() {
   // ── Sistema de Spawn ──
   const scheduleSpawn = useCallback(() => {
     if (spawnTimerRef.current) clearTimeout(spawnTimerRef.current);
+    
+    // Calcula delay baseado na horda
+    const baseDelay = nextSpawnDelay();
+    const finalDelay = hordeActive ? baseDelay * 0.3 : baseDelay;
+
     spawnTimerRef.current = setTimeout(() => {
       const state = useGameStore.getState();
       const p = state.player;
@@ -250,12 +266,14 @@ export default function GameCanvas() {
       const avgLevel = onlineP.length > 0
         ? Math.round((p.level + onlineP.reduce((s, op) => s + op.level, 0)) / (onlineP.length + 1))
         : p.level;
-      const maxZ = calcMaxZombies(avgLevel, onlineP.length + 1);
+      
+      let maxZ = calcMaxZombies(avgLevel, onlineP.length + 1);
+      if (hordeActive) maxZ = Math.min(150, maxZ * 2.5); // Aumenta limite na horda
 
       if (aliveZombies.length < maxZ) {
-        // Spawna 1-3 de uma vez
+        // Spawna mais de uma vez se horda
         const spawnCount = Math.min(
-          Math.floor(Math.random() * 3) + 1,
+          hordeActive ? Math.floor(Math.random() * 5) + 4 : Math.floor(Math.random() * 3) + 1,
           maxZ - aliveZombies.length
         );
         for (let i = 0; i < spawnCount; i++) {
@@ -269,8 +287,9 @@ export default function GameCanvas() {
         }
       }
       scheduleSpawn();
-    }, nextSpawnDelay());
-  }, []);
+    }, finalDelay);
+  }, [hordeActive]);
+
 
   useEffect(() => {
     scheduleSpawn();
@@ -278,14 +297,27 @@ export default function GameCanvas() {
   }, [scheduleSpawn]);
 
   // ── Auto-aim: encontra zumbi mais próximo no alcance ──
-  const findMultipleNearestZombies = useCallback((px: number, py: number, range: number, limit: number): Zombie[] => {
+  const findTargetsAtPosition = useCallback((wx: number, wy: number, radius: number, limit: number): (Zombie | Player)[] => {
     const state = useGameStore.getState();
-    const sorted = Array.from(state.zombies.values())
+    const targets: { t: Zombie | Player, d: number }[] = [];
+    
+    // Zumbis
+    Array.from(state.zombies.values())
       .filter(z => z.is_alive)
-      .map(z => ({ z, d: distance(px, py, z.pos_x, z.pos_y) }))
-      .filter(i => i.d <= range)
-      .sort((a, b) => a.d - b.d);
-    return sorted.slice(0, limit).map(i => i.z as Zombie);
+      .forEach(z => {
+        const d = distance(wx, wy, z.pos_x, z.pos_y);
+        if (d <= radius) targets.push({ t: z, d });
+      });
+
+    // Outros Jogadores (PvP)
+    state.onlinePlayers.forEach(op => {
+      if (op.id === state.player?.id) return;
+      const { pixelX, pixelY } = playerWorldPixelFromLatLng(op.last_lat, op.last_lng);
+      const d = distance(wx, wy, pixelX, pixelY);
+      if (d <= radius) targets.push({ t: op as any, d });
+    });
+
+    return targets.sort((a, b) => a.d - b.d).slice(0, limit).map(i => i.t);
   }, []);
 
   const collectItem = useCallback((item: WorldItem) => {
@@ -314,18 +346,14 @@ export default function GameCanvas() {
     }
   }, [removeWorldItem, addInventoryItem, addNotification, setEquippedWeapon]);
 
-  // ── Manual Attack: dispara em até 2 alvos se tiver duas armas ──
+  // ── Manual Attack ──
   const performAttack = useCallback((p: Player, px: number, py: number) => {
     const now = Date.now();
     const state = useGameStore.getState();
-    
-    // Seleção de armas baseada no slot ativo (ou ambas se o usuário não escolheu?)
-    // Para simplificar e manter a diversão: o slot ativo dita a arma principal usada.
-    // Mas se o usuário apertar 1 ou 2, ele atira com a específica.
+    const zoom = windowSize.w < 768 ? 0.65 : 1.0;
     
     const w1 = state.equippedWeapon;
     const w2 = state.equippedSecondaryWeapon;
-    
     const activeSlot = state.activeWeaponSlot;
     const mainWeapon = activeSlot === 'primary' ? w1 : w2;
     const offWeapon = activeSlot === 'primary' ? w2 : w1;
@@ -334,20 +362,35 @@ export default function GameCanvas() {
     const cooldown = 1000 / fireRate;
     if (now - lastAttackRef.current < cooldown) return;
 
-    const range = Math.max(
-      w1?.stats?.range ? w1.stats.range * 8 : 300,
-      w2?.stats?.range ? w2.stats.range * 8 : 300
-    );
+    // Mira: No PC usamos a posição do mouse, no Celular o inimigo mais próximo
+    const isPC = windowSize.w >= 768;
+    let targetX: number, targetY: number;
 
-    const targets = findMultipleNearestZombies(px, py, range, (w1 && w2) ? 2 : 1);
-    if (targets.length === 0) { setCurrentTarget(null); return; }
+    if (isPC) {
+       targetX = (mousePosRef.current.x / zoom) + state.viewportX;
+       targetY = (mousePosRef.current.y / zoom) + state.viewportY;
+    } else {
+       // Mobile continua com auto-lock no mais próximo
+       const nearest = findTargetsAtPosition(px, py, 400, 1)[0] as Zombie;
+       if (!nearest) return;
+       targetX = nearest.pos_x;
+       targetY = nearest.pos_y;
+    }
 
+    const targets = findTargetsAtPosition(targetX, targetY, 60, (w1 && w2) ? 2 : 1);
+    
     lastAttackRef.current = now;
     setIsAttacking(true);
     setTimeout(() => setIsAttacking(false), 100);
 
-    const processShoot = (target: Zombie, weapon: any, isSecondary: boolean) => {
+    const processShoot = (target: any, weapon: any, isSecondary: boolean) => {
       if (!weapon) return false;
+      
+      // Direção do Player baseada na mira
+      const dx = targetX - px;
+      const dy = targetY - py;
+      setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
+
       if (weapon.stats?.ammo_type) {
         const ok = useGameStore.getState().useAmmo(weapon.stats.ammo_type, 1);
         if (!ok) {
@@ -356,74 +399,59 @@ export default function GameCanvas() {
         }
       }
 
-      if (!isSecondary) {
-        setCurrentTarget(target.id);
-        const dx = target.pos_x - px;
-        const dy = target.pos_y - py;
-        setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
-      }
-
       audioSystem?.playShootSound();
       const { damage, isCrit, missed } = calculatePlayerDamage(p, weapon);
       
+      // Pega posição do alvo para feedback
+      let tx = target?.pos_x ?? targetX;
+      let ty = target?.pos_y ?? targetY;
+      
+      if (target && 'last_lat' in target) { // É um Player
+         const { pixelX, pixelY } = playerWorldPixelFromLatLng(target.last_lat, target.last_lng);
+         tx = pixelX; ty = pixelY;
+      }
+
       addDamageNumber({
-        x: target.pos_x - state.viewportX + (isSecondary ? 15 : -15),
-        y: target.pos_y - state.viewportY - 20,
+        x: tx - state.viewportX,
+        y: ty - state.viewportY - 20,
         damage: missed ? 0 : damage,
         isCrit,
       });
 
-      if (!missed) {
-        audioSystem?.playZombieHurt();
-        const freshTarget = useGameStore.getState().zombies.get(target.id);
-        if (!freshTarget || !freshTarget.is_alive) return true;
-
-        const newHp = Math.max(0, freshTarget.current_health - damage);
-        if (newHp <= 0) {
-          setZombie({ ...freshTarget, is_alive: false, current_health: 0 });
-          if (!isSecondary) setCurrentTarget(null);
-          setTimeout(() => removeZombie(target.id), 800);
-          
-          const newXp = p.xp + freshTarget.xp_reward;
-          const result = checkLevelUp({ ...p, xp: newXp });
-          updatePlayerStats({ kills: p.kills + 1, xp: result.newPlayer.xp, level: result.newPlayer.level });
-          if (result.leveled) addNotification(`🎉 LEVEL UP! Nível ${result.newPlayer.level}!`, 'success');
-          
-          supabase.from('kill_log').insert({
-            player_id: p.id,
-            zombie_type: freshTarget.zombie_type,
-            zombie_id: freshTarget.id,
-            tile_x: freshTarget.tile_x,
-            tile_y: freshTarget.tile_y,
-            xp_gained: freshTarget.xp_reward,
-            weapon_used: weapon?.item_id || 'fists',
-          });
-        } else {
-          setZombie({ ...freshTarget, current_health: newHp });
+      if (!missed && target) {
+        if ('zombie_type' in target) { // Dano em Zumbi
+          audioSystem?.playZombieHurt();
+          const freshTarget = useGameStore.getState().zombies.get(target.id);
+          if (!freshTarget || !freshTarget.is_alive) return true;
+          const newHp = Math.max(0, freshTarget.current_health - damage);
+          if (newHp <= 0) {
+            setZombie({ ...freshTarget, is_alive: false, current_health: 0 });
+            setTimeout(() => removeZombie(target.id), 800);
+            updatePlayerStats({ kills: p.kills + 1, xp: p.xp + freshTarget.xp_reward });
+            addNotification(`Zumbi abatido! +${freshTarget.xp_reward} XP`, 'success');
+          } else {
+            setZombie({ ...freshTarget, current_health: newHp });
+          }
+        } else { // PvP: Dano em outro Player
+           addNotification(`Dano em ${target.username}: ${damage}`, 'danger');
+           // No Supabase precisaríamos de uma edge function ou canal de dano
+           // Por enquanto, mostramos apenas o feedback visual local
         }
       }
 
       // Sistema visual do projétil
-      const newProj: VisualProjectile = {
+      setProjectiles(prev => [...prev.slice(-10), {
         id: Math.random().toString(36).slice(2),
-        sx: px,
-        sy: py,
-        tx: target.pos_x,
-        ty: target.pos_y,
-        progress: 0,
-      };
-      setProjectiles(prev => [...prev, newProj]);
+        sx: px, sy: py, tx, ty, progress: 0,
+      }]);
 
       return true;
     };
 
-    // Fogo! Atira com ambas se tiver, dando prioridade ao alvo do slot ativo
     if (mainWeapon) processShoot(targets[0], mainWeapon, false);
-    if (offWeapon) {
-      const target2 = targets.length > 1 ? targets[1] : targets[0];
-      processShoot(target2, offWeapon, true);
-    }
-  }, [findMultipleNearestZombies, setZombie, removeZombie, updatePlayerStats, addDamageNumber, addNotification]);
+    if (offWeapon && targets.length > 1) processShoot(targets[1], offWeapon, true);
+    
+  }, [findTargetsAtPosition, setZombie, removeZombie, updatePlayerStats, addDamageNumber, addNotification, windowSize.w]);
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (!player) return;
@@ -499,6 +527,54 @@ export default function GameCanvas() {
     state.zombies.forEach((zombie) => {
       if (!zombie.is_alive) return;
       const d = distance(zombie.pos_x, zombie.pos_y, px, py);
+      
+      // Logica Especial de Tipos
+      if (zombie.zombie_type === 'screamer' && d < 350 && !hordeActive) {
+         // Screamer tem chance de chamar horda se estiver perto
+         if (Math.random() < 0.002 * dt * 60) {
+            setHordeActive(true);
+            setHordeTimer(15); // 15 segundos de horda
+            addNotification('🚨 ALERTA: HORDA SE APROXIMANDO!', 'danger');
+            audioSystem?.playZombieGasp(); // Reaproveita som de alerta
+         }
+      }
+
+      if (zombie.zombie_type === 'leaper' && d < 300 && d > 100 && !zombie.is_jumping && (zombie.jump_cooldown || 0) <= 0) {
+         // Leaper pula se estiver num range específico
+         setZombie({
+           ...zombie,
+           is_jumping: true,
+           jump_progress: 0,
+           jump_cooldown: 5, // 5 segundos entre pulos
+         });
+         return;
+      }
+
+      if (zombie.is_jumping) {
+         const newProgress = (zombie.jump_progress || 0) + dt * 1.5;
+         if (newProgress >= 1) {
+            setZombie({ ...zombie, is_jumping: false, jump_progress: 1, jump_cooldown: 5 });
+         } else {
+            // No pulo ele vai reto pro player e ignora colisões
+            const ddx = (px - zombie.pos_x) / d;
+            const ddy = (py - zombie.pos_y) / d;
+            const leapSpeed = 500 * dt; // Muito rápido
+            setZombie({
+              ...zombie,
+              pos_x: zombie.pos_x + ddx * leapSpeed,
+              pos_y: zombie.pos_y + ddy * leapSpeed,
+              jump_progress: newProgress,
+              direction: Math.atan2(ddy, ddx) * 180 / Math.PI,
+            });
+         }
+         return;
+      }
+
+      // Reduz cooldown de pulo
+      if ((zombie.jump_cooldown || 0) > 0) {
+         setZombie({ ...zombie, jump_cooldown: (zombie.jump_cooldown || 0) - dt });
+      }
+
       if (d < 600) {
         if (d < 40) {
           // Ataca player
@@ -509,7 +585,10 @@ export default function GameCanvas() {
           // Move em direção ao player
           const ddx = (px - zombie.pos_x) / d;
           const ddy = (py - zombie.pos_y) / d;
-          const spd = (zombie.speed * 50) * dt;
+          let spd = (zombie.speed * 50) * dt;
+          
+          // Se horda ativa, zumbis ficam 20% mais rápidos
+          if (hordeActive) spd *= 1.25;
 
           let stepX = ddx * spd;
           let stepY = ddy * spd;
@@ -540,7 +619,7 @@ export default function GameCanvas() {
         }
       }
     });
-  }, []);
+  }, [hordeActive]);
 
   // ── Game Loop Principal ──
   useEffect(() => {
@@ -644,6 +723,18 @@ export default function GameCanvas() {
       // Atualiza zumbis
       updateZombies(dt, p, px, py);
 
+      // Atualiza Timer da Horda
+      if (hordeActive) {
+         setHordeTimer(prev => {
+           if (prev <= 0) {
+              setHordeActive(false);
+              return 0;
+           }
+           return prev - dt;
+         });
+      }
+
+      // Atualiza Projéteis Visuais
       setProjectiles(prev => {
         if (prev.length === 0) return prev;
         return prev
@@ -683,6 +774,27 @@ export default function GameCanvas() {
         position: 'absolute',
         top: 0, left: 0
       }}>
+        {/* Dust Motes (Atmosfera) */}
+        {Array.from({ length: 15 }).map((_, i) => (
+          <div key={i} className="dust-mote" style={{
+            left: (i * 7.5 + Math.random() * 10) + '%',
+            top: (i * 6.5 + Math.random() * 20) + '%',
+            animationDelay: `${i * 0.5}s`,
+            animationDuration: `${10 + Math.random() * 5}s`
+          }} />
+        ))}
+
+        {/* Overlay de Horda */}
+        {hordeActive && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'rgba(139,0,0,0.1)',
+            zIndex: 1,
+            pointerEvents: 'none',
+            animation: 'pulse-horde 2s infinite'
+          }} />
+        )}
+
         {/* ── MAPA REAL: ruas pós-apocalípticas em SVG/CSS ── */}
         <StreetMap
           viewportX={viewportX}

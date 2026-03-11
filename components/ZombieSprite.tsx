@@ -50,7 +50,8 @@ export default function ZombieSprite({
     walker: 'anim-zombie-limp',
     runner: 'anim-runner-dash',
     tank: 'anim-tank-stomp',
-    screamer: 'anim-zombie-limp'
+    screamer: 'anim-zombie-limp',
+    leaper: 'anim-runner-dash'
   };
 
   const baseAnim = isMoving ? animTypeMap[zombieType] : 'anim-idle-breath';
@@ -88,6 +89,7 @@ export default function ZombieSprite({
         {zombieType === 'runner' && <RunnerZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
         {zombieType === 'tank' && <TankZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
         {zombieType === 'screamer' && <ScreamerZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
+        {zombieType === 'leaper' && <LeaperZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
         
         {/* Sangue ao morrer */}
         {!isAlive && (
@@ -115,32 +117,8 @@ function WalkerZombie({ scale, isAttacking, isMoving }: { scale: number; isAttac
   return (
     <div style={{ position: 'relative', width: 28 * s, height: 44 * s, imageRendering: 'pixelated' }}>
       {/* ── Cabeça podre ── */}
-      <div style={{ position: 'absolute', top: 0, left: 4 * s, width: 20 * s, height: 16 * s, background: '#4a7c59', border: `${2 * s}px solid #2a4a35` }}>
+      <div style={{ position: 'absolute', top: 0, left: 4 * s, width: 22 * s, height: 18 * s, background: '#4a7c59', border: `${2 * s}px solid #2a4a35`, boxShadow: 'inset -3px -3px 0 rgba(0,0,0,0.2)' }}>
         {/* Cicatriz */}
-        <div style={{ position: 'absolute', top: 2 * s, left: 2 * s, width: 10 * s, height: s, background: '#2a4a35' }} />
-        <div style={{ position: 'absolute', top: 3 * s, left: 5 * s, width: s, height: 5 * s, background: '#2a4a35' }} />
-        {/* Olhão esquerdo vermelho */}
-        <div style={{ position: 'absolute', top: 6 * s, left: 2 * s, width: 6 * s, height: 5 * s, background: '#8b0000', boxShadow: `0 0 ${3*s}px #ff0000` }}>
-          <div style={{ position: 'absolute', inset: s, background: '#cc0000' }} />
-          <div style={{ position: 'absolute', top: s, right: s, width: s, height: s, background: 'rgba(255,255,255,0.5)' }} />
-        </div>
-        {/* Olhão direito */}
-        <div style={{ position: 'absolute', top: 6 * s, right: 2 * s, width: 6 * s, height: 5 * s, background: '#8b0000', boxShadow: `0 0 ${3*s}px #ff0000` }}>
-          <div style={{ position: 'absolute', inset: s, background: '#cc0000' }} />
-          <div style={{ position: 'absolute', top: s, left: s, width: s, height: s, background: 'rgba(255,255,255,0.5)' }} />
-        </div>
-        {/* Boca rasgada */}
-        <div style={{ position: 'absolute', bottom: 2 * s, left: 3 * s, width: 14 * s, height: 4 * s, background: '#1a0000', border: `${s}px solid #440000` }}>
-          {/* Dentes podres */}
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{
-              position: 'absolute', bottom: 0, left: `${i * 25}%`,
-              width: 3 * s, height: 3 * s,
-              background: i % 2 === 0 ? '#ccbb88' : '#998866',
-              borderTop: `${s}px solid #333`,
-            }} />
-          ))}
-        </div>
         {/* Cérebro exposto (topo) */}
         <div style={{ position: 'absolute', top: -2 * s, left: 6 * s, width: 8 * s, height: 3 * s, background: '#cc6699', border: `${s}px solid #883355` }} />
       </div>
@@ -149,14 +127,15 @@ function WalkerZombie({ scale, isAttacking, isMoving }: { scale: number; isAttac
       <div style={{ position: 'absolute', top: 16 * s, left: 9 * s, width: 10 * s, height: 4 * s, background: '#4a7c59', border: `${s}px solid #2a4a35` }} />
 
       {/* ── Torso rasgado ── */}
-      <div style={{ position: 'absolute', top: 20 * s, left: 2 * s, width: 24 * s, height: 16 * s, background: '#3a5a45', border: `${2 * s}px solid #2a4a35` }}>
-        {/* Rasgos */}
-        <div style={{ position: 'absolute', top: 2 * s, left: 6 * s, width: 2 * s, height: 12 * s, background: '#2a4a35' }} />
-        <div style={{ position: 'absolute', top: 4 * s, right: 4 * s, width: 3 * s, height: 9 * s, background: '#2a4a35' }} />
+      <div style={{ position: 'absolute', top: 20 * s, left: 2 * s, width: 24 * s, height: 16 * s, background: '#3a5a45', border: `${2 * s}px solid #2a4a35`, boxShadow: '0 4px 0 rgba(0,0,0,0.2)' }}>
         {/* Sangue / Mancha */}
-        <div style={{ position: 'absolute', top: 3 * s, left: 8 * s, width: 10 * s, height: 8 * s, background: 'rgba(139,0,0,0.5)' }} />
+        <div style={{ position: 'absolute', top: 3 * s, left: 8 * s, width: 10 * s, height: 8 * s, background: 'rgba(139,0,0,0.6)' }} />
+        {/* Moscas (Partículas) */}
+        {[1, 2, 3].map(i => (
+          <div key={i} className="anim-float" style={{ position: 'absolute', top: -10 * s * Math.random(), left: 24 * s * Math.random(), width: s, height: s, background: '#000', borderRadius: '50%', opacity: 0.6 }} />
+        ))}
         {/* Entranhas visíveis */}
-        <div style={{ position: 'absolute', bottom: 2 * s, left: 4 * s, width: 16 * s, height: 4 * s, background: 'rgba(180,50,50,0.4)' }} />
+        <div style={{ position: 'absolute', bottom: 2 * s, left: 4 * s, width: 16 * s, height: 4 * s, background: 'rgba(180,50,50,0.5)', borderRadius: s }} />
       </div>
 
       {/* ── Braço esquerdo estendido ── */}
@@ -221,13 +200,16 @@ function RunnerZombie({ scale, isAttacking, isMoving }: { scale: number; isAttac
         </div>
       </div>
       {/* Corpo magro */}
-      <div style={{ position: 'absolute', top: 14 * s, left: 3 * s, width: 16 * s, height: 18 * s, background: '#2d4a38', border: `${2 * s}px solid #1a2a20` }}>
+      <div style={{ position: 'absolute', top: 14 * s, left: 3 * s, width: 18 * s, height: 20 * s, background: '#2d4a38', border: `${2 * s}px solid #1a2a20`, boxShadow: 'inset -2px -2px 0 rgba(0,0,0,0.3)' }}>
+        {/* Sangue escorrendo */}
+        <div style={{ position: 'absolute', top: 0, left: 4*s, width: 2*s, height: 8*s, background: '#8b0000', opacity: 0.7 }} />
         {/* Costelas visíveis */}
         {[0, 1, 2].map(i => (
-          <div key={i} style={{ position: 'absolute', top: (3 + i * 5) * s, left: s, right: s, height: s, background: 'rgba(255,255,255,0.08)' }} />
+          <div key={i} style={{ position: 'absolute', top: (4 + i * 5) * s, left: 2*s, right: 2*s, height: s, background: 'rgba(255,255,255,0.1)' }} />
         ))}
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(139,0,0,0.3)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, transparent 30%, rgba(139,0,0,0.2) 100%)' }} />
       </div>
+
       {/* Braços em posição de corrida */}
       <div style={{
         position: 'absolute', top: 16 * s, left: -3 * s, width: 5 * s, height: 14 * s,
@@ -369,6 +351,35 @@ function ScreamerZombie({ scale, isAttacking, isMoving }: { scale: number; isAtt
       <div className={isMoving ? 'anim-leg-right' : ''} style={{ position: 'absolute', top: 38 * s, right: 3 * s, width: 9 * s, height: 14 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
       </div>
+    </div>
+  );
+}
+// ════════════════════════════════════════
+//  LEAPER — zumbi que pula obstáculos
+// ════════════════════════════════════════
+function LeaperZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
+  const s = scale;
+  return (
+    <div style={{ position: 'relative', width: 26 * s, height: 44 * s, imageRendering: 'pixelated' }}>
+      {/* Cabeça curvada para frente */}
+      <div style={{ position: 'absolute', top: 6 * s, left: 2 * s, width: 18 * s, height: 16 * s, background: '#7a9c79', border: `${2 * s}px solid #2a4a35`, borderRadius: '4px' }}>
+        {/* Olhos amarelos brilhantes */}
+        <div style={{ position: 'absolute', top: 5 * s, left: 2 * s, width: 6 * s, height: 4 * s, background: '#ff0', boxShadow: '0 0 8px #ff0' }} />
+        <div style={{ position: 'absolute', top: 5 * s, right: 2 * s, width: 6 * s, height: 4 * s, background: '#ff0', boxShadow: '0 0 8px #ff0' }} />
+        {/* Presas */}
+        <div style={{ position: 'absolute', bottom: 0, left: 5 * s, width: 2 * s, height: 4 * s, background: '#fff' }} />
+        <div style={{ position: 'absolute', bottom: 0, right: 5 * s, width: 2 * s, height: 4 * s, background: '#fff' }} />
+      </div>
+      {/* Corpo arqueado */}
+      <div style={{ position: 'absolute', top: 18 * s, left: 4 * s, width: 20 * s, height: 14 * s, background: '#3a5a45', border: `${2 * s}px solid #2a4a35`, transform: 'skewX(-10deg)' }}>
+        <div style={{ position: 'absolute', top: 0, left: 2*s, right: 2*s, height: s, background: 'rgba(255,255,255,0.2)' }} />
+      </div>
+      {/* Braços como garras no chão */}
+      <div style={{ position: 'absolute', top: 22 * s, left: -4 * s, width: 6 * s, height: 20 * s, background: '#7a9c79', border: `${s}px solid #2a3a25`, transform: 'rotate(15deg)' }} />
+      <div style={{ position: 'absolute', top: 22 * s, right: -4 * s, width: 6 * s, height: 20 * s, background: '#7a9c79', border: `${s}px solid #2a3a25`, transform: 'rotate(-15deg)' }} />
+      {/* Pernas poderosas (saltador) */}
+      <div className={isMoving ? "anim-leg-left" : ""} style={{ position: 'absolute', bottom: 0, left: 2 * s, width: 10 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #000` }} />
+      <div className={isMoving ? "anim-leg-right" : ""} style={{ position: 'absolute', bottom: 0, right: 2 * s, width: 10 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #000` }} />
     </div>
   );
 }
