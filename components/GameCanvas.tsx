@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useGameStore } from '@/lib/store';
-import { Zombie, Player } from '@/lib/supabase';
+import { Zombie, Player, WorldItem } from '@/lib/supabase';
 import { playerWorldPixelFromLatLng, GAME_TILE_PX, worldPixelToLatLng } from '@/lib/osmTiles';
 import { distance, calculatePlayerDamage, calculateZombieDamage, checkLevelUp } from '@/lib/combat';
 import { calcMaxZombies, createSpawnZombie, nextSpawnDelay } from '@/lib/zombieSpawner';
@@ -11,6 +11,17 @@ import PlayerSprite from './PlayerSprite';
 import ZombieSprite from './ZombieSprite';
 import StreetMap from './StreetMap';
 import { parseCustomCSS } from '@/lib/cssParser';
+
+export function useWindowSize() {
+  const [size, setSize] = useState({ w: 800, h: 600 });
+  useEffect(() => {
+    setSize({ w: window.innerWidth, h: window.innerHeight });
+    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return size;
+}
 
 // ── Funcao global de checagem física SVG (não depende de viewport) ──
 const isPointOnWalkableRoad = (worldX: number, worldY: number) => {
@@ -47,6 +58,7 @@ export default function GameCanvas() {
     damageNumbers, addDamageNumber, clearOldDamageNumbers,
     addNotification,
     setEquippedWeapon,
+    activeWeaponSlot, setActiveWeaponSlot,
   } = useGameStore();
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -101,20 +113,41 @@ export default function GameCanvas() {
     setPlayerPixel(pixelX, pixelY);
   }, [player?.id]);
 
-  // ── Teclado (WASD) ──
+  // ── Teclado (WASD + Novas Teclas) ──
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
+      // Inventário no TAB
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        useGameStore.getState().toggleInventory();
+        return;
+      }
+
       keysRef.current.add(e.code);
-      // Atalhos de UI
+
       const st = useGameStore.getState();
-      if (e.code === 'KeyI') st.toggleInventory();
+      
+      // Armamentos 1 e 2
+      if (e.code === 'Digit1') {
+        st.setActiveWeaponSlot('primary');
+        st.addNotification('Arma Principal Selecionada', 'info');
+      }
+      if (e.code === 'Digit2') {
+        st.setActiveWeaponSlot('secondary');
+        st.addNotification('Arma Secundária Selecionada', 'info');
+      }
+
+      // Atalhos de UI mantidos ou movidos
       if (e.code === 'KeyM') st.toggleMap();
       if (e.code === 'KeyC') st.toggleCharCustomizer();
       if (e.code === 'KeyU') st.toggleWeaponUpgrade();
       if (e.code === 'KeyT') st.toggleChat();
       if (e.code === 'KeyL') st.toggleLeaderboard();
     };
-    const onUp = (e: KeyboardEvent) => keysRef.current.delete(e.code);
+    const onUp = (e: KeyboardEvent) => {
+      if (e.code === 'Tab') e.preventDefault();
+      keysRef.current.delete(e.code);
+    };
     
     const onMouseMove = (e: MouseEvent) => {
       mousePosRef.current = { x: e.clientX, y: e.clientY };
@@ -228,15 +261,48 @@ export default function GameCanvas() {
     return sorted.slice(0, limit).map(i => i.z as Zombie);
   }, []);
 
-  // ── Auto-attack: dispara em até 2 alvos se tiver duas armas ──
-  const autoAttack = useCallback((p: Player, px: number, py: number) => {
+  const collectItem = useCallback((item: WorldItem) => {
+    const state = useGameStore.getState();
+    removeWorldItem(item.id);
+    const invItem = {
+      id: crypto.randomUUID(),
+      player_id: state.player?.id || '',
+      item_type: item.item_type,
+      item_id: item.item_id,
+      item_name: item.item_name,
+      quantity: item.quantity,
+      weight: item.weight,
+      rarity: item.rarity,
+      stats: item.stats || {},
+      equipped: false,
+      upgrades: [],
+      durability: 100,
+    };
+    addInventoryItem(invItem);
+    supabase.from('inventory').insert(invItem).then();
+    addNotification(`Coletou: ${item.item_name}`, 'info');
+    if (item.item_type === 'weapon' && !state.equippedWeapon) {
+      setEquippedWeapon({ ...invItem, equipped: true });
+    }
+  }, [removeWorldItem, addInventoryItem, addNotification, setEquippedWeapon]);
+
+  // ── Manual Attack: dispara em até 2 alvos se tiver duas armas ──
+  const performAttack = useCallback((p: Player, px: number, py: number) => {
     const now = Date.now();
     const state = useGameStore.getState();
+    
+    // Seleção de armas baseada no slot ativo (ou ambas se o usuário não escolheu?)
+    // Para simplificar e manter a diversão: o slot ativo dita a arma principal usada.
+    // Mas se o usuário apertar 1 ou 2, ele atira com a específica.
+    
     const w1 = state.equippedWeapon;
     const w2 = state.equippedSecondaryWeapon;
     
-    // Usa a cadencia da arma principal (ou secundaria se so tiver ela)
-    const fireRate = w1?.stats?.fire_rate || w2?.stats?.fire_rate || 0.8;
+    const activeSlot = state.activeWeaponSlot;
+    const mainWeapon = activeSlot === 'primary' ? w1 : w2;
+    const offWeapon = activeSlot === 'primary' ? w2 : w1;
+
+    const fireRate = mainWeapon?.stats?.fire_rate || offWeapon?.stats?.fire_rate || 0.8;
     const cooldown = 1000 / fireRate;
     if (now - lastAttackRef.current < cooldown) return;
 
@@ -253,16 +319,15 @@ export default function GameCanvas() {
     setTimeout(() => setIsAttacking(false), 100);
 
     const processShoot = (target: Zombie, weapon: any, isSecondary: boolean) => {
-      // Checar munição individualmente por arma se necessário
-      if (weapon?.stats?.ammo_type) {
+      if (!weapon) return false;
+      if (weapon.stats?.ammo_type) {
         const ok = useGameStore.getState().useAmmo(weapon.stats.ammo_type, 1);
         if (!ok) {
-           if (!isSecondary) addNotification('Sem munição na primária!', 'warning');
+           if (!isSecondary) addNotification(`Sem munição: ${weapon.item_name}`, 'warning');
            return false;
         }
       }
 
-      // Direciona o olhar apenas para o alvo principal
       if (!isSecondary) {
         setCurrentTarget(target.id);
         const dx = target.pos_x - px;
@@ -282,7 +347,6 @@ export default function GameCanvas() {
 
       if (!missed) {
         audioSystem?.playZombieHurt();
-        // Re-obter o zombie do estado atualizado (caso a primeira arma já o tenha alterado)
         const freshTarget = useGameStore.getState().zombies.get(target.id);
         if (!freshTarget || !freshTarget.is_alive) return true;
 
@@ -313,14 +377,42 @@ export default function GameCanvas() {
       return true;
     };
 
-    // Fogo!
-    if (w1) processShoot(targets[0], w1, false);
-    if (w2) {
-      // Se tiver 2 alvos, segunda arma atira no segundo. Senão, ambas no primeiro.
+    // Fogo! Atira com ambas se tiver, dando prioridade ao alvo do slot ativo
+    if (mainWeapon) processShoot(targets[0], mainWeapon, false);
+    if (offWeapon) {
       const target2 = targets.length > 1 ? targets[1] : targets[0];
-      processShoot(target2, w2, true);
+      processShoot(target2, offWeapon, true);
     }
   }, [findMultipleNearestZombies, setZombie, removeZombie, updatePlayerStats, addDamageNumber, addNotification]);
+
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    if (!player) return;
+    const state = useGameStore.getState();
+    const px = playerPosRef.current.x;
+    const py = playerPosRef.current.y;
+    
+    // Coordenadas do click no mundo
+    const clickX = e.clientX + state.viewportX;
+    const clickY = e.clientY + state.viewportY;
+
+    // 1. Tentar coletar itens (dentro de 100px do player)
+    let pickedUp = false;
+    state.worldItems.forEach((item) => {
+      const distToPlayer = distance(px, py, item.pos_x, item.pos_y);
+      const distToClick = distance(clickX, clickY, item.pos_x, item.pos_y);
+      
+      // Se clicar perto do item E o player estiver a 100px dele
+      if (distToPlayer < 100 && distToClick < 50) {
+        collectItem(item);
+        pickedUp = true;
+      }
+    });
+
+    if (pickedUp) return;
+
+    // 2. Senão, atirar
+    performAttack(player, px, py);
+  };
 
   // ── Game Loop Principal ──
   useEffect(() => {
@@ -370,10 +462,14 @@ export default function GameCanvas() {
       const moving = dx !== 0 || dy !== 0;
       setIsMoving(moving);
 
+      const keys = keysRef.current;
+      let isSprinting = moving && !showInventory && (keys.has('ShiftLeft') || keys.has('ShiftRight')) && p.current_stamina > 5;
+      const finalSpeed = isSprinting ? speed * 1.8 : speed;
+
       if (moving) {
         const len = Math.sqrt(dx * dx + dy * dy);
-        let stepX = (dx / len) * speed * dt;
-        let stepY = (dy / len) * speed * dt;
+        let stepX = (dx / len) * finalSpeed * dt;
+        let stepY = (dy / len) * finalSpeed * dt;
 
         // Collision Check: SVG Natively with isPointOnWalkableRoad
         let moveAllowed = true;
@@ -394,11 +490,9 @@ export default function GameCanvas() {
         if (moveAllowed) {
           playerPosRef.current.x += stepX;
           playerPosRef.current.y += stepY;
-          const newStamina = Math.max(0, p.current_stamina - dt * 6);
+          const staminaConsumption = isSprinting ? dt * 25 : dt * 5;
+          const newStamina = Math.max(0, p.current_stamina - staminaConsumption);
           if (newStamina !== p.current_stamina) updatePlayerStats({ current_stamina: newStamina });
-          checkItemPickup();
-        } else {
-          // Bloqueado (esbarrou fora da rua)
         }
       } else {
         const newStamina = Math.min(p.max_stamina, p.current_stamina + dt * 10);
@@ -420,9 +514,6 @@ export default function GameCanvas() {
 
       // Viewport
       setViewport(px - w / 2, py - h / 2);
-
-      // Auto-attack
-      autoAttack(p, px, py);
 
       // Atualiza zumbis
       updateZombies(dt, p, px, py);
@@ -531,6 +622,7 @@ export default function GameCanvas() {
   return (
     <div
       ref={canvasRef}
+      onClick={handleCanvasClick}
       style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#12110a' }}
     >
       {/* ── MAPA REAL: ruas pós-apocalípticas em SVG/CSS ── */}
@@ -658,6 +750,39 @@ export default function GameCanvas() {
           {dn.damage === 0 ? 'MISS' : dn.isCrit ? `⚡${dn.damage}!` : dn.isHeal ? `+${dn.damage}` : dn.damage}
         </div>
       ))}
+
+      {/* ── Weapon HUD ── */}
+      <div style={{
+        position: 'absolute', bottom: 20, left: 20, zIndex: 1000,
+        display: 'flex', gap: 10, pointerEvents: 'none'
+      }}>
+        <div style={{
+          padding: '10px 15px', background: 'rgba(5,5,5,0.85)', 
+          border: `2px solid ${activeWeaponSlot === 'primary' ? '#00f2ff' : '#444'}`,
+          borderRadius: 6, color: '#fff', fontSize: 11, fontFamily: 'Outfit, sans-serif',
+          display: 'flex', alignItems: 'center', gap: 8,
+          boxShadow: activeWeaponSlot === 'primary' ? '0 0 15px rgba(0,242,255,0.3)' : 'none',
+          transition: 'all 0.2s ease',
+          opacity: activeWeaponSlot === 'primary' ? 1 : 0.6
+        }}>
+          <span style={{ opacity: 0.5 }}>1</span>
+          <span>{equippedWeapon ? itemEmoji(equippedWeapon.item_id) : '👊'}</span>
+          <span>{equippedWeapon?.item_name || 'Mãos Nuas'}</span>
+        </div>
+        <div style={{
+          padding: '10px 15px', background: 'rgba(5,5,5,0.85)', 
+          border: `2px solid ${activeWeaponSlot === 'secondary' ? '#00f2ff' : '#444'}`,
+          borderRadius: 6, color: '#fff', fontSize: 11, fontFamily: 'Outfit, sans-serif',
+          display: 'flex', alignItems: 'center', gap: 8,
+          boxShadow: activeWeaponSlot === 'secondary' ? '0 0 15px rgba(0,242,255,0.3)' : 'none',
+          transition: 'all 0.2s ease',
+          opacity: activeWeaponSlot === 'secondary' ? 1 : 0.6
+        }}>
+          <span style={{ opacity: 0.5 }}>2</span>
+          <span>{equippedSecondaryWeapon ? itemEmoji(equippedSecondaryWeapon.item_id) : '✖️'}</span>
+          <span>{equippedSecondaryWeapon?.item_name || 'Vazio'}</span>
+        </div>
+      </div>
 
       {/* ── Atribuição OSM (obrigatória por licença) ── */}
       <div style={{

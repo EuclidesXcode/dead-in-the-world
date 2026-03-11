@@ -103,6 +103,8 @@ interface GameState {
   notifications: Array<{ id: string; message: string; type: 'info' | 'success' | 'warning' | 'danger'; createdAt: number }>;
   addNotification: (message: string, type?: 'info' | 'success' | 'warning' | 'danger') => void;
   clearNotification: (id: string) => void;
+  activeWeaponSlot: 'primary' | 'secondary';
+  setActiveWeaponSlot: (slot: 'primary' | 'secondary') => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -262,4 +264,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
     })),
+  activeWeaponSlot: 'primary',
+  setActiveWeaponSlot: (activeWeaponSlot) => set({ activeWeaponSlot }),
 }));
