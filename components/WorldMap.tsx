@@ -1,21 +1,20 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { osmTileToWorldMapPx, OSM_ZOOM } from '@/lib/osmTiles';
-
-interface ExploredPoint { tileX: number; tileY: number; }
-interface ActivePlayer { lat: number; lng: number; username: string; }
+import { useGameStore } from '@/lib/store';
+import { latLngToOsmTile, OSM_ZOOM } from '@/lib/osmTiles';
 
 export default function WorldMap({ isBackground = false }: { isBackground?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stats, setStats] = useState({ tiles: 0, players: 0 });
   const [loading, setLoading] = useState(true);
+  const { player } = useGameStore();
 
   useEffect(() => {
     loadAndDraw();
     const interval = setInterval(loadAndDraw, 30000); // Atualiza a cada 30s
     return () => clearInterval(interval);
-  }, []);
+  }, [player?.id]);
 
   const loadAndDraw = async () => {
     const canvas = canvasRef.current;
@@ -32,82 +31,123 @@ export default function WorldMap({ isBackground = false }: { isBackground?: bool
     const W = canvas.width;
     const H = canvas.height;
 
-    // Fundo escuro
-    ctx.fillStyle = '#0a0a0a';
+    // Fundo escuro profundo
+    ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, W, H);
 
     // ── Carrega tiles explorados do Supabase ──
     const [{ data: tiles }, { data: players }] = await Promise.all([
-      supabase.from('map_tiles').select('tile_x, tile_y').limit(2000),
+      supabase.from('map_tiles').select('tile_x, tile_y').limit(4000),
       supabase.from('players').select('last_lat, last_lng, username, is_online').eq('is_online', true).limit(100),
     ]);
 
     setLoading(false);
 
-    // ── Desenha continentes (OSM tiles de baixo zoom como fundo) ──
-    // Usando imagem simples de baixo zoom para referência visual
-    const worldImg = new Image();
-    worldImg.crossOrigin = 'anonymous';
-    worldImg.src = 'https://a.tile.openstreetmap.org/2/0/0.png'; // World overview
-    worldImg.onload = () => {
-      // Desenha 4×2 tiles do zoom 2 para cobrir o mundo todo
-      const tileW = W / 4;
-      const tileH = H / 2;
-      for (let tx = 0; tx < 4; tx++) {
-        for (let ty = 0; ty < 2; ty++) {
-          const imgTile = new Image();
-          imgTile.crossOrigin = 'anonymous';
-          imgTile.src = `https://a.tile.openstreetmap.org/2/${tx}/${ty}.png`;
-          imgTile.onload = () => {
-            ctx.globalAlpha = 0.25;
-            ctx.filter = 'brightness(0.4) saturate(0.3)';
-            ctx.drawImage(imgTile, tx * tileW, ty * tileH, tileW, tileH);
-            ctx.globalAlpha = 1;
-            ctx.filter = 'none';
-          };
-        }
-      }
+    // ── Função para carregar imagem com Promise ──
+    const loadImage = (url: string): Promise<HTMLImageElement> => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = url;
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null as any);
+      });
     };
 
-    // ── Pontos explorados ──
+    // ── Desenha continentes (OSM zoom 2 = 4x4 tiles) ──
+    const bgZoom = 2;
+    const n = Math.pow(2, bgZoom); // 4
+    const tileW = W / n;
+    const tileH = H / n;
+
+    // Carrega todos os tiles de fundo em paralelo
+    const bgPromises: Promise<any>[] = [];
+    for (let tx = 0; tx < n; tx++) {
+      for (let ty = 0; ty < n; ty++) {
+        bgPromises.push((async () => {
+          const img = await loadImage(`https://a.tile.openstreetmap.org/${bgZoom}/${tx}/${ty}.png`);
+          if (img) {
+            ctx.save();
+            ctx.globalAlpha = isBackground ? 0.15 : 0.25;
+            ctx.filter = 'brightness(0.3) saturate(0.2) contrast(1.2) invert(0.9) hue-rotate(180deg)'; // Efeito negativo azulado/tecnológico
+            ctx.drawImage(img, tx * tileW, ty * tileH, tileW, tileH);
+            ctx.restore();
+          }
+        })());
+      }
+    }
+    await Promise.all(bgPromises);
+
+    // ── Pontos explorados (Red Dots) ──
     if (tiles && tiles.length > 0) {
       setStats(prev => ({ ...prev, tiles: tiles.length }));
-      const scale = Math.pow(2, OSM_ZOOM);
+      const worldScale = Math.pow(2, OSM_ZOOM);
 
       tiles.forEach(({ tile_x, tile_y }) => {
-        const px = (tile_x / scale) * W;
-        const py = (tile_y / scale) * H;
+        const px = (tile_x / worldScale) * W;
+        const py = (tile_y / worldScale) * H;
 
-        // Glow vermelho sangue para área explorada
-        const grd = ctx.createRadialGradient(px, py, 0, px, py, 3);
-        grd.addColorStop(0, 'rgba(180, 0, 0, 0.9)');
-        grd.addColorStop(1, 'rgba(100, 0, 0, 0)');
-        ctx.fillStyle = grd;
+        ctx.fillStyle = 'rgba(220, 38, 38, 0.6)';
+        ctx.beginPath();
+        ctx.arc(px, py, isBackground ? 2 : 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Pequenino glow
+        if (!isBackground) {
+          ctx.shadowBlur = 4;
+          ctx.shadowColor = '#dc2626';
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+      });
+    }
+
+    // ── Players ativos (Green Dots) ──
+    if (players && players.length > 0) {
+      setStats(prev => ({ ...prev, players: players.length }));
+      players.forEach((p) => {
+        if (!p.last_lat || !p.last_lng) return;
+        const { tileX, tileY } = latLngToOsmTile(p.last_lat, p.last_lng, OSM_ZOOM);
+        const worldScale = Math.pow(2, OSM_ZOOM);
+        const px = (tileX / worldScale) * W;
+        const py = (tileY / worldScale) * H;
+
+        ctx.fillStyle = '#39ff14';
         ctx.beginPath();
         ctx.arc(px, py, 3, 0, Math.PI * 2);
         ctx.fill();
       });
     }
 
-    // ── Players ativos ──
-    if (players && players.length > 0) {
-      setStats(prev => ({ ...prev, players: players.length }));
-      players.forEach((p) => {
-        if (!p.last_lat || !p.last_lng) return;
-        const scale = Math.pow(2, OSM_ZOOM);
-        const { tileX, tileY } = latLngToOsmTileLocal(p.last_lat, p.last_lng);
-        const px = (tileX / scale) * W;
-        const py = (tileY / scale) * H;
+    // ── MARCADOR: VOCÊ ESTÁ AQUI (Se logado) ──
+    if (player && player.last_lat && player.last_lng) {
+      const { tileX, tileY } = latLngToOsmTile(player.last_lat, player.last_lng, OSM_ZOOM);
+      const worldScale = Math.pow(2, OSM_ZOOM);
+      const px = (tileX / worldScale) * W;
+      const py = (tileY / worldScale) * H;
 
-        // Pulso verde para player online
-        const grd = ctx.createRadialGradient(px, py, 0, px, py, 5);
-        grd.addColorStop(0, 'rgba(57,255,20,1)');
-        grd.addColorStop(1, 'rgba(57,255,20,0)');
-        ctx.fillStyle = grd;
-        ctx.beginPath();
-        ctx.arc(px, py, 5, 0, Math.PI * 2);
-        ctx.fill();
-      });
+      // Círculo pulsante branco/azul
+      const time = Date.now() / 500;
+      const pulse = 1 + Math.sin(time) * 0.3;
+      
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, 8 * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(px, py, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Label
+      if (!isBackground) {
+        ctx.font = 'bold 9px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText('VOCÊ', px, py - 12);
+      }
     }
 
     // ── Grade do mapa ──
@@ -194,12 +234,4 @@ export default function WorldMap({ isBackground = false }: { isBackground?: bool
       )}
     </div>
   );
-}
-
-function latLngToOsmTileLocal(lat: number, lng: number, zoom = OSM_ZOOM) {
-  const n = Math.pow(2, zoom);
-  const tileX = Math.floor((lng + 180) / 360 * n);
-  const latRad = lat * Math.PI / 180;
-  const tileY = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
-  return { tileX, tileY };
 }
