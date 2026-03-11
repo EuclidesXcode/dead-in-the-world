@@ -7,10 +7,20 @@
 //  PATCH → bug fix, ajuste visual, melhoria pequena
 // ──────────────────────────────────────────────────────
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.1.1';
 export const VERSION_LABEL = 'Alpha';
 
 export const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
+  {
+    version: '0.1.1',
+    date: '2026-03-11',
+    changes: [
+      'Fix: redirect OAuth após login Google',
+      'Callback processa hash token (#access_token) corretamente',
+      'Tela de loading com spinner no callback',
+      'Supabase Site URL configurado com https://',
+    ],
+  },
   {
     version: '0.1.0',
     date: '2026-03-11',
