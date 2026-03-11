@@ -392,9 +392,10 @@ export default function GameCanvas() {
     const px = playerPosRef.current.x;
     const py = playerPosRef.current.y;
     
-    // Coordenadas do click no mundo
-    const clickX = e.clientX + state.viewportX;
-    const clickY = e.clientY + state.viewportY;
+    // Coordenadas do click no mundo corrigidas pelo zoom
+    const zoom = windowSize.w < 768 ? 0.65 : 1.0;
+    const clickX = (e.clientX / zoom) + state.viewportX;
+    const clickY = (e.clientY / zoom) + state.viewportY;
 
     // 1. Tentar coletar itens (dentro de 100px do player)
     let pickedUp = false;
@@ -415,115 +416,7 @@ export default function GameCanvas() {
     performAttack(player, px, py);
   };
 
-  // ── Game Loop Principal ──
-  useEffect(() => {
-    const gameLoop = () => {
-      const now = Date.now();
-      const dt = Math.min((now - lastUpdateRef.current) / 1000, 0.05);
-      lastUpdateRef.current = now;
 
-      const p = useGameStore.getState().player;
-      if (!p) { animFrameRef.current = requestAnimationFrame(gameLoop); return; }
-
-      const showInventory = useGameStore.getState().showInventory;
-      
-      // Movimentação (Teclado ou Mouse) - Ajustada para o novo GAME_TILE_PX massivo
-      const speed = 220 * (1 + p.agility * 0.04);
-      let dx = 0, dy = 0;
-
-      if (!showInventory) {
-        const keys = keysRef.current;
-        if (keys.has('KeyW') || keys.has('ArrowUp')) dy -= 1;
-        if (keys.has('KeyS') || keys.has('ArrowDown')) dy += 1;
-        if (keys.has('KeyA') || keys.has('ArrowLeft')) dx -= 1;
-        if (keys.has('KeyD') || keys.has('ArrowRight')) dx += 1;
-      }
-
-      const moving = dx !== 0 || dy !== 0;
-      setIsMoving(moving);
-
-      // Facing direction
-      if (w >= 768) {
-        const mdx = mousePosRef.current.x - w / 2;
-        const mdy = mousePosRef.current.y - h / 2;
-        setPlayerDir((Math.atan2(mdy, mdx) * 180 / Math.PI + 360) % 360);
-      } else if (moving) {
-        setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
-      }
-
-      const keys = keysRef.current;
-      let isSprinting = moving && !showInventory && (keys.has('ShiftLeft') || keys.has('ShiftRight')) && p.current_stamina > 5;
-      const finalSpeed = isSprinting ? speed * 1.8 : speed;
-
-      if (moving) {
-        const len = Math.sqrt(dx * dx + dy * dy);
-        let stepX = (dx / len) * finalSpeed * dt;
-        let stepY = (dy / len) * finalSpeed * dt;
-
-        // Collision Check: SVG Natively with isPointOnWalkableRoad
-        let moveAllowed = true;
-        if (!process.env.NEXT_PUBLIC_IGNORE_COLLISION) {
-           const pxBase = playerPosRef.current.x;
-           const pyBase = playerPosRef.current.y;
-           const targetX = pxBase + stepX;
-           const targetY = pyBase + stepY + 10;
-           
-           moveAllowed = isPointOnWalkableRoad(targetX, targetY);
-           
-           if (!moveAllowed) {
-              if (isPointOnWalkableRoad(targetX, pyBase + 10)) { stepY = 0; moveAllowed = true; }
-              else if (isPointOnWalkableRoad(pxBase, targetY)) { stepX = 0; moveAllowed = true; }
-           }
-        }
-
-        if (moveAllowed) {
-          playerPosRef.current.x += stepX;
-          playerPosRef.current.y += stepY;
-          const staminaConsumption = isSprinting ? dt * 25 : dt * 5;
-          const newStamina = Math.max(0, p.current_stamina - staminaConsumption);
-          if (newStamina !== p.current_stamina) updatePlayerStats({ current_stamina: newStamina });
-        }
-      } else {
-        const newStamina = Math.min(p.max_stamina, p.current_stamina + dt * 10);
-        if (Math.abs(newStamina - p.current_stamina) > 0.1) updatePlayerStats({ current_stamina: newStamina });
-      }
-
-      const px = playerPosRef.current.x;
-      const py = playerPosRef.current.y;
-      setPlayerPixel(px, py);
-
-      // Atualiza lat/lng real quando move
-      if (moving && originTileRef.current) {
-        const { lat, lng } = worldPixelToLatLng(px, py, originTileRef.current.x, originTileRef.current.y);
-        // Só atualiza o estado zustand se a distância for significativa para não engasgar a thread
-        if (Math.abs(p.last_lat - lat) > 0.00005 || Math.abs(p.last_lng - lng) > 0.00005) {
-          updatePlayerStats({ last_lat: lat, last_lng: lng });
-        }
-      }
-
-      // Viewport
-      setViewport(px - w / 2, py - h / 2);
-
-      // Mobile Auto-actions
-      if (w < 768) {
-        checkItemPickup();
-        performAttack(p, px, py);
-      }
-      // Atualiza zumbis
-      updateZombies(dt, p, px, py);
-
-      // Pre-load tiles OSM
-      prefetchNearbyTiles();
-
-      clearOldDamageNumbers();
-      animFrameRef.current = requestAnimationFrame(gameLoop);
-    };
-
-    animFrameRef.current = requestAnimationFrame(gameLoop);
-    return () => cancelAnimationFrame(animFrameRef.current);
-  }, [windowSize]);
-
-  const useWindowSize = () => windowSize;
 
   const prefetchNearbyTiles = useCallback(() => { /* StreetMap cuida do buffer */ }, []);
 
@@ -610,27 +503,151 @@ export default function GameCanvas() {
     });
   }, []);
 
+  // ── Game Loop Principal ──
+  useEffect(() => {
+    const gameLoop = () => {
+      const now = Date.now();
+      const dt = Math.min((now - lastUpdateRef.current) / 1000, 0.05);
+      lastUpdateRef.current = now;
+
+      const p = useGameStore.getState().player;
+      if (!p) { animFrameRef.current = requestAnimationFrame(gameLoop); return; }
+
+      const showInventory = useGameStore.getState().showInventory;
+      
+      const { w: screenW, h: screenH } = windowSize;
+      const zoom = screenW < 768 ? 0.65 : 1.0;
+      const w = screenW / zoom;
+      const h = screenH / zoom;
+
+      // Movimentação (Teclado ou Mouse) - Ajustada para o novo GAME_TILE_PX massivo
+      const speed = 220 * (1 + p.agility * 0.04);
+      let dx = 0, dy = 0;
+
+      if (!showInventory) {
+        const keys = keysRef.current;
+        if (keys.has('KeyW') || keys.has('ArrowUp')) dy -= 1;
+        if (keys.has('KeyS') || keys.has('ArrowDown')) dy += 1;
+        if (keys.has('KeyA') || keys.has('ArrowLeft')) dx -= 1;
+        if (keys.has('KeyD') || keys.has('ArrowRight')) dx += 1;
+      }
+
+      const moving = dx !== 0 || dy !== 0;
+      setIsMoving(moving);
+
+      // Facing direction
+      if (screenW >= 768) {
+        const mdx = (mousePosRef.current.x / zoom) - w / 2;
+        const mdy = (mousePosRef.current.y / zoom) - h / 2;
+        setPlayerDir((Math.atan2(mdy, mdx) * 180 / Math.PI + 360) % 360);
+      } else if (moving) {
+        setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
+      }
+
+      const keys = keysRef.current;
+      let isSprinting = moving && !showInventory && (keys.has('ShiftLeft') || keys.has('ShiftRight')) && p.current_stamina > 5;
+      const finalSpeed = isSprinting ? speed * 1.8 : speed;
+
+      if (moving) {
+        const len = Math.sqrt(dx * dx + dy * dy);
+        let stepX = (dx / len) * finalSpeed * dt;
+        let stepY = (dy / len) * finalSpeed * dt;
+
+        // Collision Check: SVG Natively with isPointOnWalkableRoad
+        let moveAllowed = true;
+        if (!process.env.NEXT_PUBLIC_IGNORE_COLLISION) {
+           const pxBase = playerPosRef.current.x;
+           const pyBase = playerPosRef.current.y;
+           const targetX = pxBase + stepX;
+           const targetY = pyBase + stepY + 10;
+           
+           moveAllowed = isPointOnWalkableRoad(targetX, targetY);
+           
+           if (!moveAllowed) {
+              if (isPointOnWalkableRoad(targetX, pyBase + 10)) { stepY = 0; moveAllowed = true; }
+              else if (isPointOnWalkableRoad(pxBase, targetY)) { stepX = 0; moveAllowed = true; }
+           }
+        }
+
+        if (moveAllowed) {
+          playerPosRef.current.x += stepX;
+          playerPosRef.current.y += stepY;
+          const staminaConsumption = isSprinting ? dt * 25 : dt * 5;
+          const newStamina = Math.max(0, p.current_stamina - staminaConsumption);
+          if (newStamina !== p.current_stamina) updatePlayerStats({ current_stamina: newStamina });
+        }
+      } else {
+        const newStamina = Math.min(p.max_stamina, p.current_stamina + dt * 10);
+        if (Math.abs(newStamina - p.current_stamina) > 0.1) updatePlayerStats({ current_stamina: newStamina });
+      }
+
+      const px = playerPosRef.current.x;
+      const py = playerPosRef.current.y;
+      setPlayerPixel(px, py);
+
+      // Atualiza lat/lng real quando move
+      if (moving && originTileRef.current) {
+        const { lat, lng } = worldPixelToLatLng(px, py, originTileRef.current.x, originTileRef.current.y);
+        // Só atualiza o estado zustand se a distância for significativa para não engasgar a thread
+        if (Math.abs(p.last_lat - lat) > 0.00005 || Math.abs(p.last_lng - lng) > 0.00005) {
+          updatePlayerStats({ last_lat: lat, last_lng: lng });
+        }
+      }
+
+      // Viewport
+      setViewport(px - w / 2, py - h / 2);
+
+      // Mobile Auto-actions
+      if (w < 768) {
+        checkItemPickup();
+        performAttack(p, px, py);
+      }
+      // Atualiza zumbis
+      updateZombies(dt, p, px, py);
+
+      // Pre-load tiles OSM
+      prefetchNearbyTiles();
+
+      clearOldDamageNumbers();
+      animFrameRef.current = requestAnimationFrame(gameLoop);
+    };
+
+    animFrameRef.current = requestAnimationFrame(gameLoop);
+    return () => cancelAnimationFrame(animFrameRef.current);
+  }, [windowSize, performAttack, checkItemPickup, updateZombies, prefetchNearbyTiles, clearOldDamageNumbers, setPlayerPixel, setViewport, updatePlayerStats]);
+
   if (!player) return null;
 
-  const { w, h } = windowSize;
+  const zoom = windowSize.w < 768 ? 0.65 : 1.0;
+  const w = windowSize.w / zoom;
+  const h = windowSize.h / zoom;
 
   return (
     <div
       ref={canvasRef}
+      className="game-canvas"
       onClick={handleCanvasClick}
       style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#12110a' }}
     >
-      {/* ── MAPA REAL: ruas pós-apocalípticas em SVG/CSS ── */}
-      <StreetMap
-        viewportX={viewportX}
-        viewportY={viewportY}
-        screenW={w}
-        screenH={h}
-        originTileX={originTileRef.current.x}
-        originTileY={originTileRef.current.y}
-        playerLat={player.last_lat || 0}
-        playerLng={player.last_lng || 0}
-      />
+      <div style={{
+        transform: `scale(${zoom})`,
+        transformOrigin: 'top left',
+        width: w,
+        height: h,
+        position: 'absolute',
+        top: 0, left: 0
+      }}>
+        {/* ── MAPA REAL: ruas pós-apocalípticas em SVG/CSS ── */}
+        <StreetMap
+          viewportX={viewportX}
+          viewportY={viewportY}
+          screenW={w}
+          screenH={h}
+          originTileX={originTileRef.current.x}
+          originTileY={originTileRef.current.y}
+          playerLat={player.last_lat || 0}
+          playerLng={player.last_lng || 0}
+        />
 
       {/* ── Vinheta ambiente pós-apocalipse ── */}
       <div style={{
@@ -736,15 +753,16 @@ export default function GameCanvas() {
         />
       </div>
 
-      {/* ── Damage Numbers ── */}
-      {damageNumbers.map((dn) => (
-        <div key={dn.id}
-          className={`damage-number ${dn.isCrit ? 'crit' : dn.isHeal ? 'heal' : dn.damage === 0 ? 'miss' : 'normal'}`}
-          style={{ left: dn.x, top: dn.y, position: 'absolute', zIndex: 300 }}
-        >
-          {dn.damage === 0 ? 'MISS' : dn.isCrit ? `⚡${dn.damage}!` : dn.isHeal ? `+${dn.damage}` : dn.damage}
-        </div>
-      ))}
+        {/* ── Damage Numbers ── */}
+        {damageNumbers.map((dn) => (
+          <div key={dn.id}
+            className={`damage-number ${dn.isCrit ? 'crit' : dn.isHeal ? 'heal' : dn.damage === 0 ? 'miss' : 'normal'}`}
+            style={{ left: dn.x, top: dn.y, position: 'absolute', zIndex: 300 }}
+          >
+            {dn.damage === 0 ? 'MISS' : dn.isCrit ? `⚡${dn.damage}!` : dn.isHeal ? `+${dn.damage}` : dn.damage}
+          </div>
+        ))}
+      </div>
 
       {/* ── Weapon HUD ── */}
       <div style={{
