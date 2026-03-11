@@ -34,6 +34,7 @@ export default function GameCanvas() {
   const lastAttackRef = useRef(0);
   const playerPosRef = useRef({ x: 0, y: 0 });
   const originTileRef = useRef({ x: 0, y: 0 });
+  const mousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const animFrameRef = useRef<number>(0);
   const spawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -75,11 +76,18 @@ export default function GameCanvas() {
       if (e.code === 'KeyL') st.toggleLeaderboard();
     };
     const onUp = (e: KeyboardEvent) => keysRef.current.delete(e.code);
+    
+    const onMouseMove = (e: MouseEvent) => {
+      mousePosRef.current = { x: e.clientX, y: e.clientY };
+    };
+
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
+    window.addEventListener('mousemove', onMouseMove);
     return () => {
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
+      window.removeEventListener('mousemove', onMouseMove);
     };
   }, []);
 
@@ -233,7 +241,7 @@ export default function GameCanvas() {
       const p = useGameStore.getState().player;
       if (!p) { animFrameRef.current = requestAnimationFrame(gameLoop); return; }
 
-      // Movimentação (Escalada 1.6x para bater com os pixels novos do mapa de zoom maior)
+      // Movimentação (Teclado ou Mouse)
       const speed = 130 * (1 + p.agility * 0.04);
       let dx = 0, dy = 0;
       const keys = keysRef.current;
@@ -241,6 +249,19 @@ export default function GameCanvas() {
       if (keys.has('KeyS') || keys.has('ArrowDown')) dy += 1;
       if (keys.has('KeyA') || keys.has('ArrowLeft')) dx -= 1;
       if (keys.has('KeyD') || keys.has('ArrowRight')) dx += 1;
+
+      const { w, h } = useWindowSize();
+
+      // Se não usar WASD, segue o ponteiro do mouse
+      if (dx === 0 && dy === 0) {
+        const mdx = mousePosRef.current.x - w / 2;
+        const mdy = mousePosRef.current.y - h / 2;
+        const dist = Math.sqrt(mdx * mdx + mdy * mdy);
+        if (dist > 30) { // deadzone no centro
+          dx = mdx;
+          dy = mdy;
+        }
+      }
 
       const moving = dx !== 0 || dy !== 0;
       setIsMoving(moving);
@@ -251,7 +272,6 @@ export default function GameCanvas() {
         let stepY = (dy / len) * speed * dt;
 
         // Collision Check: testa elemento no centro-baixo do player (seus "pés")
-        const { w, h } = useWindowSize();
         // Os próximos pés estariam visualmente parados no centro (h/2 + offset) se a camera fosse solta.
         // Como a camera segue o player, "andar" significa que o mapa anda CORTRA o player.
         // Simulamos a colisão testando qual elemento DOM está sob o centro da tela se testássemos o próximo tick.
@@ -309,7 +329,6 @@ export default function GameCanvas() {
       }
 
       // Viewport
-      const { w, h } = useWindowSize();
       setViewport(px - w / 2, py - h / 2);
 
       // Auto-attack
