@@ -429,10 +429,41 @@ export default function GameCanvas() {
           const ddx = (px - zombie.pos_x) / d;
           const ddy = (py - zombie.pos_y) / d;
           const spd = (zombie.speed * 50) * dt;
+
+          let stepX = ddx * spd;
+          let stepY = ddy * spd;
+
+          if (!process.env.NEXT_PUBLIC_IGNORE_COLLISION) {
+            const vpX = state.viewportX;
+            const vpY = state.viewportY;
+            const zScreenX = zombie.pos_x + stepX - vpX;
+            const zScreenY = zombie.pos_y + stepY - vpY;
+
+            // Só testa colisão visual se o zumbi estiver na tela
+            if (zScreenX >= 0 && zScreenX <= window.innerWidth && zScreenY >= 0 && zScreenY <= window.innerHeight) {
+              const centerEls = document.elementsFromPoint(zScreenX, zScreenY + 15);
+              let moveAllowed = centerEls.some(el => el.classList.contains('walkable-road'));
+
+              if (!moveAllowed) {
+                const testX = document.elementsFromPoint(zombie.pos_x + stepX - vpX, zombie.pos_y - vpY + 15);
+                if (testX.some(el => el.classList.contains('walkable-road'))) { stepY = 0; moveAllowed = true; }
+                else {
+                  const testY = document.elementsFromPoint(zombie.pos_x - vpX, zombie.pos_y + stepY - vpY + 15);
+                  if (testY.some(el => el.classList.contains('walkable-road'))) { stepX = 0; moveAllowed = true; }
+                }
+              }
+
+              if (!moveAllowed) {
+                stepX = 0;
+                stepY = 0;
+              }
+            }
+          }
+
           setZombie({
             ...zombie,
-            pos_x: zombie.pos_x + ddx * spd,
-            pos_y: zombie.pos_y + ddy * spd,
+            pos_x: zombie.pos_x + stepX,
+            pos_y: zombie.pos_y + stepY,
             direction: Math.atan2(ddy, ddx) * 180 / Math.PI,
           });
         }

@@ -1,120 +1,63 @@
 'use client';
+import { Howl } from 'howler';
 
-// Usamos uma classe singleton para garantir que o AudioContext só inicialize no browser pós-interação
-class RetroAudio {
-  private ctx: AudioContext | null = null;
-  private bgmOsc: OscillatorNode | null = null;
+class AudioManager {
+  private bgm: Howl | null = null;
+  private shootSfx: Howl | null = null;
+  private hurtSfx: Howl | null = null;
   private isBgmPlaying = false;
 
-  private init() {
-    if (!this.ctx && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
-      }
+  constructor() {
+    if (typeof window !== 'undefined') {
+      // Usando sons de domínio público (para efeito de demonstração de terror 8-bits)
+      // Substituir pelas URLs definitivas de assets depois, se tiver!
+      this.bgm = new Howl({
+        src: ['https://cdn.freesound.org/previews/148/148281_166986-lq.mp3'], // Drone macabro baixo
+        loop: true,
+        volume: 0.1, // Bem baixinho
+      });
+
+      this.shootSfx = new Howl({
+        src: ['https://cdn.freesound.org/previews/163/163456_2120259-lq.mp3'], // Gunshot
+        volume: 0.2,
+      });
+
+      this.hurtSfx = new Howl({
+        src: ['https://cdn.freesound.org/previews/68/68261_642459-lq.mp3'], // Zombie Hurt / Groan
+        volume: 0.2,
+      });
     }
   }
 
-  // Suspense a BGM se a aba fechar ou o usuário sair
+  public startBGM() {
+    if (!this.bgm || this.isBgmPlaying) return;
+    this.isBgmPlaying = true;
+    this.bgm.play();
+    this.bgm.fade(0, 0.1, 3000); // Fade in pra não assustar
+  }
+
   public stopBGM() {
-    if (this.bgmOsc) {
-      try { this.bgmOsc.stop(); } catch(e){}
-      this.bgmOsc = null;
-    }
+    if (!this.bgm) return;
+    this.bgm.fade(0.1, 0, 1000);
+    this.bgm.once('fade', () => {
+      this.bgm?.stop();
+    });
     this.isBgmPlaying = false;
   }
 
-  // Background Music - Sintetizador ambiente de terror/apocalipse (Drone longo)
-  public startBGM() {
-    this.init();
-    if (!this.ctx || this.isBgmPlaying) return;
-
-    this.isBgmPlaying = true;
-    const osc = this.ctx.createOscillator();
-    const gainNode = this.ctx.createGain();
-    const filter = this.ctx.createBiquadFilter();
-
-    // Drone sombrio
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(55, this.ctx.currentTime); // Frequência mega baixa (nota A1)
-    
-    // Filtro modulado
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(100, this.ctx.currentTime);
-    filter.Q.value = 5;
-
-    // Modulação (LFO para o volume e filtro)
-    const lfo = this.ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = 0.1; // Lentidão macabra
-    
-    const lfoGain = this.ctx.createGain();
-    lfoGain.gain.value = 300; 
-
-    lfo.connect(lfoGain);
-    lfoGain.connect(filter.frequency);
-
-    gainNode.gain.setValueAtTime(0, this.ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.08, this.ctx.currentTime + 5); // Fade in suave
-    
-    osc.connect(filter);
-    filter.connect(gainNode);
-    gainNode.connect(this.ctx.destination);
-
-    osc.start();
-    lfo.start();
-    this.bgmOsc = osc;
-  }
-
-  // Efeito de Tiro estilo 8-bits retro
   public playShootSound() {
-    this.init();
-    if (!this.ctx) return;
-
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(400, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(10, this.ctx.currentTime + 0.1);
-
-    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.1);
+    if (this.shootSfx) {
+      this.shootSfx.rate(0.9 + Math.random() * 0.2); // Variação de pitch pra não soar repetitivo
+      this.shootSfx.play();
+    }
   }
 
-  // Zumbi machucado e gemido
   public playZombieHurt() {
-    this.init();
-    if (!this.ctx) return;
-
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(120, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.3);
-
-    gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.3);
-  }
-
-  public resume() {
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+    if (this.hurtSfx) {
+      this.hurtSfx.rate(0.8 + Math.random() * 0.4); 
+      this.hurtSfx.play();
     }
   }
 }
 
-export const audioSystem = typeof window !== 'undefined' ? new RetroAudio() : null;
+export const audioSystem = typeof window !== 'undefined' ? new AudioManager() : null;
