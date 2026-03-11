@@ -26,14 +26,14 @@ export interface SpawnZombie {
 
 // ── Configuração de spawn por nível ──
 const SPAWN_CONFIG = {
-  base_max: 4,              // Máximo de zumbis no viewport sem nenhum jogador
-  per_player_level: 0.8,   // +0.8 max por nível médio
-  per_player_count: 2,     // +2 max por jogador extra na área
-  absolute_max: 40,        // Nunca excede este valor
-  spawn_interval_ms: 8000, // Intervalo base de spawn (8s)
-  spawn_variation_ms: 4000, // Variação aleatória ±
-  min_spawn_dist: 350,     // Mínimo de pixels do jogador para spawnar
-  max_spawn_dist: 700,     // Máximo de pixels do jogador para spawnar
+  base_max: 20,             // Aumentado: hordas maiores
+  per_player_level: 1.5,   
+  per_player_count: 8,     
+  absolute_max: 120,        
+  spawn_interval_ms: 2500,  // Muito mais rápido: 2.5s
+  spawn_variation_ms: 1000, 
+  min_spawn_dist: 350,     
+  max_spawn_dist: 700,     
 };
 
 // ── Type de zumbi ponderado por area e nível ──
@@ -71,8 +71,9 @@ export function calcMaxZombies(avgPlayerLevel: number, playerCount: number): num
 // ── Gera posição de spawn válida (fora do raio do player) ──
 export function getSpawnPosition(
   playerX: number, playerY: number,
+  isValid?: (x: number, y: number) => boolean
 ): { x: number; y: number } {
-  let x: number, y: number;
+  let x: number = playerX, y: number = playerY;
   let attempts = 0;
   do {
     const angle = Math.random() * Math.PI * 2;
@@ -80,8 +81,10 @@ export function getSpawnPosition(
       Math.random() * (SPAWN_CONFIG.max_spawn_dist - SPAWN_CONFIG.min_spawn_dist);
     x = playerX + Math.cos(angle) * dist;
     y = playerY + Math.sin(angle) * dist;
+    
+    if (!isValid || isValid(x, y)) return { x, y };
     attempts++;
-  } while (attempts < 10); // Evita loop infinito
+  } while (attempts < 15);
 
   return { x, y };
 }
@@ -91,8 +94,9 @@ export function createSpawnZombie(
   playerX: number, playerY: number,
   originTileX: number, originTileY: number,
   avgLevel: number,
+  isValid?: (x: number, y: number) => boolean
 ): SpawnZombie {
-  const { x, y } = getSpawnPosition(playerX, playerY);
+  const { x, y } = getSpawnPosition(playerX, playerY, isValid);
   const type = pickZombieType(avgLevel) as keyof typeof ZOMBIE_STATS;
   const stats = ZOMBIE_STATS[type];
 

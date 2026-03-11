@@ -562,4 +562,46 @@ html, body {
 
 .anim-zombie-death { animation: zombie-death 0.8s forwards ease-in; }
 .anim-blood { animation: blood-splatter 0.6s forwards ease-out; }
-.anim-item-float { animation: item-float-fancy 2.5s infinite ease-in-out; }
+.anim-item-float {
+  animation: item-float-fancy 2s ease-in-out infinite;
+}
+
+.projectile-ember {
+  width: 6px;
+  height: 6px;
+  background: radial-gradient(circle, #fff 0%, #ffda44 40%, #ff4400 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 12px #ffda44, 0 0 24px #ff4400;
+  position: absolute;
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 0.1s;
+}
+
+.projectile-ember::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 4px;
+  background: linear-gradient(to right, #ff4400, transparent);
+  transform: translateY(-50%) translateX(-100%);
+  opacity: 0.6;
+}
+
+.muzzle-flash {
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,200,0,0.4) 60%, transparent 100%);
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  z-index: 101;
+  animation: muzzle-flash-anim 0.05s ease-out forwards;
+}
+
+@keyframes muzzle-flash-anim {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}

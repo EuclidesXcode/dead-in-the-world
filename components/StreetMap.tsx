@@ -158,6 +158,88 @@ function WeedCluster({ cx, cy, size, rand }: { cx: number; cy: number; size: num
   );
 }
 
+/* ── Prédio 3D fake (Extrusão SVG) ── */
+function Building3D({ pts, height = 25, color = '#151515', id }: { pts: { x: number; y: number }[], height?: number, color?: string, id: string | number }) {
+  const offsetX = -height * 0.2;
+  const offsetY = -height * 0.4;
+  const roofPts = pts.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
+  
+  return (
+    <g key={`b3d-${id}`}>
+      {/* Sombra projetada no chão */}
+      <polygon points={pts.map(p => `${p.x + 8},${p.y + 8}`).join(' ')} fill="rgba(0,0,0,0.3)" />
+      
+      {/* Paredes laterais */}
+      {pts.map((p, i) => {
+        const nextIdx = (i + 1) % pts.length;
+        const p1 = p; const p2 = pts[nextIdx];
+        const r1 = roofPts[i]; const r2 = roofPts[nextIdx];
+        
+        // Brilho fake baseado na direção da parede
+        const dx = p2.x - p1.x; const dy = p2.y - p1.y;
+        const ang = Math.atan2(dy, dx);
+        const b = 0.5 + Math.abs(Math.cos(ang)) * 0.5;
+        
+        return (
+          <polygon key={i} points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${r2.x},${r2.y} ${r1.x},${r1.y}`} 
+            fill={color} style={{ filter: `brightness(${b.toFixed(2)})` }} stroke="rgba(0,0,0,0.4)" strokeWidth="0.5" />
+        );
+      })}
+      
+      {/* Teto */}
+      <polygon points={roofPts.map(p => `${p.x},${p.y}`).join(' ')} fill={color} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+      
+      {/* Detalhes de ruína no teto */}
+      <rect x={roofPts[0].x + 5} y={roofPts[0].y + 5} width={12} height={8} fill="rgba(0,0,0,0.5)" rx="1" />
+    </g>
+  );
+}
+
+/* ── Pequenas Construções Procedurais (Props) ── */
+function SmallProp({ cx, cy, type, rand }: { cx: number; cy: number; type: 'shack' | 'container' | 'debris'; rand: () => number }) {
+  const w = type === 'container' ? 40 : 25;
+  const h = type === 'container' ? 18 : 25;
+  const color = type === 'container' ? '#2a3b4a' : '#222';
+  
+  if (type === 'container') {
+    return (
+       <g transform={`translate(${cx},${cy}) rotate(${(rand() * 360).toFixed(1)})`}>
+         {/* Sombra */}
+         <rect x={-w/2+4} y={-h/2+4} width={w} height={h} fill="rgba(0,0,0,0.4)" />
+         {/* Parede lateral fake */}
+         <rect x={-w/2} y={-h/2} width={w} height={h} fill={color} filter="brightness(0.7)" />
+         {/* Teto do container */}
+         <rect x={-w/2-3} y={-h/2-5} width={w} height={h} fill={color} stroke="#111" />
+         {/* Frisos do container */}
+         {[1, 2, 3, 4, 5].map(i => (
+           <line key={i} x1={-w/2-3 + (i*w/6)} y1={-h/2-5} x2={-w/2-3 + (i*w/6)} y2={-h/2-5+h} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+         ))}
+       </g>
+    );
+  }
+  
+  if (type === 'shack') {
+    return (
+      <g transform={`translate(${cx},${cy})`}>
+        {/* Sombra */}
+        <rect x={-12} y={-12} width={24} height={24} fill="rgba(0,0,0,0.3)" />
+        {/* Paredes */}
+        <rect x={-10} y={-10} width={20} height={20} fill="#2a1f1a" stroke="#111" />
+        {/* Teto inclinado (zinc/ferrugem) */}
+        <polygon points="-12,-12 12,-15 15,10 -10,12" fill="#3a3a3a" stroke="#222" />
+        <line x1={-12} y1={-12} x2={15} y2={10} stroke="rgba(255,255,255,0.05)" />
+      </g>
+    );
+  }
+  
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <rect x={-10} y={-10} width={20} height={20} fill="#111" rx="2" />
+      <line x1={-12} y1={-12} x2={12} y2={12} stroke="#333" strokeWidth="1" />
+    </g>
+  );
+}
+
 /* ── Componente principal ── */
 export default function StreetMap({
   viewportX, viewportY, screenW, screenH,
@@ -243,12 +325,13 @@ export default function StreetMap({
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16,
         }}>
           <div style={{ width: 40, height: 40, border: '3px solid #1a1a1a', borderTopColor: '#8b0000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: '#333', animation: 'pulse 1s infinite' }}>
+          <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: '#333' }}>
             GERANDO MAPA REAL...
           </div>
           <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
         </div>
       )}
+
       {status === 'error' && (
         <div style={{ position: 'absolute', inset: 0, background: DIRT_BG }}>
           <FallbackMap viewportX={viewportX} viewportY={viewportY} svgViewX={svgViewX} svgViewY={svgViewY} svgViewW={svgViewW} svgViewH={svgViewH} />
@@ -262,61 +345,49 @@ export default function StreetMap({
         viewBox={`${svgViewX} ${svgViewY} ${svgViewW} ${svgViewH}`}
       >
         <defs>
-          {/* Padrão de asfalto rachado */}
           <pattern id="asphalt-pat" x="0" y="0" width="48" height="48" patternUnits="userSpaceOnUse">
             <rect width="48" height="48" fill={ASPHALT} />
             <circle cx="12" cy="12" r="5" fill="#151412" opacity="0.5" />
             <circle cx="36" cy="30" r="7" fill="#131210" opacity="0.4" />
-            <rect x="18" y="6" width="12" height="1" fill="#111" opacity="0.3" transform="rotate(20 18 6)" />
-            <rect x="3" y="30" width="10" height="0.5" fill="#0e0e0c" opacity="0.4" />
             <path d="M 20 40 Q 25 35 30 42" stroke="#111" strokeWidth="1" fill="none" opacity="0.5" />
           </pattern>
-          {/* Padrão de calçada (paralelepípedo/lajota) */}
           <pattern id="sidewalk-pat" x="0" y="0" width="18" height="18" patternUnits="userSpaceOnUse">
             <rect width="18" height="18" fill={SIDEWALK} />
             <rect x="0" y="0" width="1" height="18" fill="#1a1816" opacity="0.6" />
             <rect x="0" y="0" width="18" height="1" fill="#1a1816" opacity="0.6" />
-            <rect x="9" y="9" width="1" height="9" fill="#161412" opacity="0.3" />
-            <rect x="9" y="9" width="9" height="1" fill="#161412" opacity="0.3" />
           </pattern>
-          {/* Padrão de terra/dirt */}
           <pattern id="dirt-pat" x="0" y="0" width="48" height="48" patternUnits="userSpaceOnUse">
             <rect width="48" height="48" fill={DIRT_BG} />
             <circle cx="12" cy="10" r="9" fill="#111009" opacity="0.5" />
             <circle cx="36" cy="30" r="14" fill="#0f0e08" opacity="0.4" />
-            <circle cx="5" cy="38" r="6" fill="#131208" opacity="0.3" />
-            <circle cx="40" cy="8" r="5" fill="#100f08" opacity="0.35" />
           </pattern>
         </defs>
 
-        {/* ── FUNDO (terra/chão pós-apoc) ── */}
+        {/* ── FUNDO ── */}
         <rect x={svgViewX} y={svgViewY} width={svgViewW} height={svgViewH} fill="url(#dirt-pat)" />
 
-        {/* ── ÁREAS VERDES (parques abandonados) ── */}
+        {/* ── ÁREAS VERDES ── */}
         {greenAreas.map(way => {
           const pts = nodesToPts(way.geometry, originTileX, originTileY);
           if (pts.length < 3) return null;
-          // Culling simples (bounding box bounding box)
           const minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
           const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
           if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
               maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
-
           const rand = seededRand(way.id);
           return (
             <g key={`green-${way.id}`}>
               <polygon className="walkable-road" points={ptsToPolygon(pts)} fill={GREEN_DARK} stroke="#0a1304" strokeWidth="1" />
-              {/* Mato denso na área verde */}
-              {Array.from({ length: 8 }, (_, i) => {
-                const cx = pts[0].x + (rand() - 0.5) * 120;
-                const cy = pts[0].y + (rand() - 0.5) * 120;
-                return <WeedCluster key={i} cx={cx} cy={cy} size={12 + rand() * 20} rand={rand} />;
+              {Array.from({ length: 4 }, (_, i) => {
+                const cx = pts[0].x + (rand() - 0.5) * 150;
+                const cy = pts[0].y + (rand() - 0.5) * 150;
+                return <WeedCluster key={i} cx={cx} cy={cy} size={15 + rand() * 15} rand={rand} />;
               })}
             </g>
           );
         })}
 
-        {/* ── CALÇADAS (layer mais largo, cor calçada) ── */}
+        {/* ── CALÇADAS ── */}
         {roads.map(way => {
           const type = way.tags.highway;
           if (['footway', 'cycleway', 'path', 'steps'].includes(type)) return null;
@@ -326,21 +397,13 @@ export default function StreetMap({
           const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
           if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
               maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
-
           const realW = ROAD_WIDTHS_M[type] ?? 9;
           const roadPx = getPixelWidth(realW, lat);
           const sidewalkPx = roadPx + getPixelWidth(realW * 0.35, lat) * 2;
-          return (
-            <path key={`sw-${way.id}`} d={ptsToD(pts)}
-              className="walkable-road"
-              fill="none" stroke="url(#sidewalk-pat)"
-              strokeWidth={sidewalkPx} strokeLinecap="round" strokeLinejoin="round"
-              pointerEvents="stroke"
-            />
-          );
+          return <path key={`sw-${way.id}`} d={ptsToD(pts)} className="walkable-road" fill="none" stroke="url(#sidewalk-pat)" strokeWidth={sidewalkPx} strokeLinecap="round" strokeLinejoin="round" pointerEvents="stroke" />;
         })}
 
-        {/* ── ASFALTO (camada principal da rua) ── */}
+        {/* ── ASFALTO ── */}
         {roads.map(way => {
           const pts = nodesToPts(way.geometry, originTileX, originTileY);
           if (pts.length < 2) return null;
@@ -348,49 +411,14 @@ export default function StreetMap({
           const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
           if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
               maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
-
           const type = way.tags.highway;
           const realW = ROAD_WIDTHS_M[type] ?? 9;
           const roadPx = getPixelWidth(realW, lat);
           const isMinor = ['footway', 'cycleway', 'path', 'steps'].includes(type);
-          return (
-            <path key={`rd-${way.id}`} d={ptsToD(pts)}
-              className="walkable-road"
-              fill="none"
-              stroke={isMinor ? SIDEWALK : 'url(#asphalt-pat)'}
-              strokeWidth={isMinor ? roadPx * 0.5 : roadPx}
-              strokeLinecap="round" strokeLinejoin="round"
-              pointerEvents="stroke"
-            />
-          );
+          return <path key={`rd-${way.id}`} d={ptsToD(pts)} className="walkable-road" fill="none" stroke={isMinor ? SIDEWALK : 'url(#asphalt-pat)'} strokeWidth={isMinor ? roadPx * 0.5 : roadPx} strokeLinecap="round" strokeLinejoin="round" pointerEvents="stroke" />;
         })}
 
-        {/* ── MARCAÇÕES DE FAIXA (desgastadas, quase sumindo) ── */}
-        {roads.map(way => {
-          const type = way.tags.highway;
-          if (!ROAD_IS_MAJOR[type]) return null;
-          const pts = nodesToPts(way.geometry, originTileX, originTileY);
-          if (pts.length < 2) return null;
-          const minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
-          const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
-          if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
-              maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
-
-          const realW = ROAD_WIDTHS_M[type] ?? 9;
-          const roadPx = getPixelWidth(realW, lat);
-          const dashLen = Math.round(roadPx * 1.2);
-          return (
-            <path key={`ln-${way.id}`} d={ptsToD(pts)}
-              fill="none"
-              stroke="rgba(52,46,10,0.28)"
-              strokeWidth="1.5"
-              strokeLinecap="butt"
-              strokeDasharray={`${dashLen} ${dashLen * 2.5}`}
-            />
-          );
-        })}
-
-        {/* ── PRÉDIOS ── */}
+        {/* ── PRÉDIOS 3D ── */}
         {buildings.map(way => {
           const pts = nodesToPts(way.geometry, originTileX, originTileY);
           if (pts.length < 3) return null;
@@ -398,48 +426,11 @@ export default function StreetMap({
           const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
           if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
               maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
-
           const rand = seededRand(way.id);
-          const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-          const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-          return (
-            <g key={`bld-${way.id}`}>
-              {/* Sombra */}
-              <polygon points={ptsToPolygon(pts.map(p => ({ x: p.x + 3, y: p.y + 3 })))}
-                fill="rgba(0,0,0,0.4)" />
-              {/* Paredes */}
-              <polygon points={ptsToPolygon(pts)} fill={BUILDING} stroke="#0a0a0a" strokeWidth="1.5" />
-              {/* Borda da ruína */}
-              <polygon points={ptsToPolygon(pts)} fill="none"
-                stroke="rgba(45,38,28,0.45)" strokeWidth="1" />
-              {/* Janelas quebradas */}
-              {Array.from({ length: Math.floor(rand() * 2) + 1 }, (_, i) => {
-                if (rand() > 0.65) return null;
-                const wx = cx + (rand() - 0.5) * 32;
-                const wy = cy + (rand() - 0.5) * 32;
-                const ws = 5 + rand() * 7;
-                // Algumas janelas têm glow de luz de emergência
-                const hasGlow = rand() > 0.85;
-                return (
-                  <g key={i}>
-                    {hasGlow && <rect x={wx - ws / 2 - 1} y={wy - ws * 0.7} width={ws + 2} height={ws * 1.4 + 2}
-                      fill="rgba(40,60,20,0.12)" />}
-                    <rect x={wx - ws / 2} y={wy - ws * 0.7} width={ws} height={ws * 1.4}
-                      fill={hasGlow ? 'rgba(20,28,14,0.5)' : 'rgba(18,22,28,0.45)'}
-                      stroke="rgba(35,32,26,0.3)" strokeWidth="0.5" />
-                    {/* Vidro quebrado */}
-                    {rand() > 0.5 && (
-                      <line x1={wx - ws / 2} y1={wy - ws * 0.4} x2={wx + ws / 2} y2={wy + ws * 0.6}
-                        stroke="rgba(30,28,22,0.5)" strokeWidth="0.7" />
-                    )}
-                  </g>
-                );
-              })}
-            </g>
-          );
+          return <Building3D key={`b3d-${way.id}`} pts={pts} id={way.id} height={25 + rand() * 45} color={BUILDING} />;
         })}
 
-        {/* ── DECORAÇÕES PÓS-APOCALÍPTICAS nas ruas ── */}
+        {/* ── PEQUENAS CONSTRUÇÕES E DECORAÇÕES ── */}
         {roads.map(way => {
           const pts = nodesToPts(way.geometry, originTileX, originTileY);
           if (pts.length < 2) return null;
@@ -447,108 +438,45 @@ export default function StreetMap({
           const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
           if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
               maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
-
+          
           const type = way.tags.highway;
-          const realW = ROAD_WIDTHS_M[type] ?? 9;
-          const roadPx = getPixelWidth(realW, lat);
-          const len = polyLen(pts);
+          const roadPx = getPixelWidth(ROAD_WIDTHS_M[type] ?? 9, lat);
           const rand = seededRand(way.id * 31);
-          const isMajor = ROAD_IS_MAJOR[type] ?? false;
+          const len = polyLen(pts);
           const el: React.ReactNode[] = [];
 
-          // ── Mato nas bordas ──
-          const weedStep = 38;
-          const weedCount = Math.floor(len / weedStep);
-          for (let i = 0; i < Math.min(weedCount, 15); i++) {
-            if (rand() > 0.45) continue;
-            const t = (i + 0.2 + rand() * 0.6) / Math.max(1, weedCount);
-            const pos = polyPoint(pts, t);
-            if (!pos) continue;
-            const side = rand() > 0.5 ? 1 : -1;
-            const edgeOffset = (roadPx / 2 - 2) * side;
-            const perpR = (pos.angle + 90) * Math.PI / 180;
-            const wx = pos.x + Math.cos(perpR) * edgeOffset;
-            const wy = pos.y + Math.sin(perpR) * edgeOffset;
-            if (wx > viewportX && wx < viewportX + screenW && wy > viewportY && wy < viewportY + screenH) {
-              el.push(<WeedCluster key={`w${i}`} cx={wx} cy={wy} size={5 + rand() * 12} rand={rand} />);
-            }
+          // Adiciona mato e pequenos props (shacks/containers)
+          for (let i = 0; i < Math.min(Math.floor(len / 120), 5); i++) {
+             if (rand() > 0.4) continue;
+             const pos = polyPoint(pts, (i + rand()) / Math.max(1, len/120));
+             if (!pos) continue;
+             const side = rand() > 0.5 ? 1.4 : -1.4;
+             const wx = pos.x + Math.cos((pos.angle+90)*Math.PI/180) * (roadPx + 15) * side;
+             const wy = pos.y + Math.sin((pos.angle+90)*Math.PI/180) * (roadPx + 15) * side;
+             
+             if (rand() > 0.7) {
+               el.push(<SmallProp key={`p-${i}`} cx={wx} cy={wy} type={rand() > 0.5 ? 'container' : 'shack'} rand={rand} />);
+             } else {
+               el.push(<WeedCluster key={`w-${i}`} cx={wx} cy={wy} size={15+rand()*10} rand={rand} />);
+             }
           }
 
-          // ── Carros enferrujados (nas ruas principais) ──
-          if (isMajor) {
-            const carStep = 180;
-            const carCount = Math.floor(len / carStep);
-            for (let i = 0; i < Math.min(carCount, 5); i++) {
-              if (rand() > 0.38) continue;
-              const t = (i + 0.4 + rand() * 0.2) / Math.max(1, carCount);
-              const pos = polyPoint(pts, t);
-              if (!pos) continue;
-              const side = rand() > 0.5 ? 1 : -1;
-              const carOffset = (roadPx / 2 - 8) * side * (0.5 + rand() * 0.4);
-              const perpR = (pos.angle + 90) * Math.PI / 180;
-              const carX = pos.x + Math.cos(perpR) * carOffset;
-              const carY = pos.y + Math.sin(perpR) * carOffset;
-              if (carX > viewportX - 100 && carX < viewportX + screenW + 100 && carY > viewportY - 100 && carY < viewportY + screenH + 100) {
-                el.push(<RustedCar key={`car${i}`} cx={carX} cy={carY} angle={pos.angle} rand={rand} />);
-              }
-            }
+          if (ROAD_IS_MAJOR[type]) {
+             for (let i = 0; i < Math.min(Math.floor(len / 250), 2); i++) {
+                if (rand() > 0.4) continue;
+                const pos = polyPoint(pts, (i + 0.5) / Math.max(1, len/250));
+                if (!pos) continue;
+                const carX = pos.x + (rand() - 0.5) * (roadPx * 0.4);
+                const carY = pos.y + (rand() - 0.5) * (roadPx * 0.4);
+                el.push(<RustedCar key={`car-${i}`} cx={carX} cy={carY} angle={pos.angle} rand={rand} />);
+             }
           }
-
-          // ── Rachaduras no asfalto ──
-          if (isMajor) {
-            const crackStep = 120;
-            const crackCount = Math.floor(len / crackStep);
-            for (let i = 0; i < Math.min(crackCount, 8); i++) {
-              if (rand() > 0.45) continue;
-              const t = (i + rand()) / Math.max(1, crackCount);
-              const pos = polyPoint(pts, t);
-              if (!pos) continue;
-              const perpR = (pos.angle + 90) * Math.PI / 180;
-              const crackW = roadPx * (0.3 + rand() * 0.55);
-              // Rachadura principal
-              if (pos.x > viewportX - 100 && pos.x < viewportX + screenW + 100 && pos.y > viewportY - 100 && pos.y < viewportY + screenH + 100) {
-                el.push(
-                  <line key={`cr${i}`}
-                    x1={pos.x - Math.cos(perpR) * crackW / 2}
-                    y1={pos.y - Math.sin(perpR) * crackW / 2}
-                    x2={pos.x + Math.cos(perpR) * crackW / 2}
-                    y2={pos.y + Math.sin(perpR) * crackW / 2}
-                    stroke="rgba(6,6,5,0.65)" strokeWidth={0.6 + rand() * 0.8} strokeLinecap="round"
-                  />
-                );
-              }
-            }
-          }
-
-          // ── Poças d'óleo/sangue nas calçadas ──
-          if (isMajor && rand() > 0.6) {
-            const t = rand();
-            const pos = polyPoint(pts, t);
-            if (pos && pos.x > viewportX && pos.x < viewportX + screenW && pos.y > viewportY && pos.y < viewportY + screenH) {
-              const perpR = (pos.angle + 90) * Math.PI / 180;
-              const side = rand() > 0.5 ? 1 : -1;
-              const ox = pos.x + Math.cos(perpR) * (roadPx / 2) * side;
-              const oy = pos.y + Math.sin(perpR) * (roadPx / 2) * side;
-              el.push(
-                <ellipse key="puddle"
-                  cx={ox} cy={oy}
-                  rx={8 + rand() * 12} ry={4 + rand() * 8}
-                  fill="rgba(60,5,5,0.25)"
-                  transform={`rotate(${(rand() * 180).toFixed(1)},${ox.toFixed(1)},${oy.toFixed(1)})`}
-                />
-              );
-            }
-          }
-
+          
           return <g key={`dec-${way.id}`}>{el}</g>;
         })}
 
-        {/* ── Atribuição OpenStreetMap ── */}
-        <text
-          x={svgViewX + 8} y={svgViewY + svgViewH - 8}
-          fontFamily="Arial" fontSize="10"
-          fill="rgba(255,255,255,0.12)"
-        >
+        {/* ── ATRIBUIÇÃO ── */}
+        <text x={svgViewX + 8} y={svgViewY + svgViewH - 8} fontFamily="Arial" fontSize="9" fill="rgba(255,255,255,0.1)">
           © OpenStreetMap contributors
         </text>
       </svg>
@@ -556,15 +484,12 @@ export default function StreetMap({
   );
 }
 
-/* ── Fallback quando Overpass falha (mapa procedural mínimo) ── */
 function FallbackMap({ svgViewX, svgViewY, svgViewW, svgViewH, viewportX, viewportY }: any) {
-  const rand = seededRand(42);
   return (
     <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       viewBox={`${svgViewX} ${svgViewY} ${svgViewW} ${svgViewH}`}
     >
       <rect x={svgViewX} y={svgViewY} width={svgViewW} height={svgViewH} fill="#12110a" />
-      {/* Grid de ruas simples como fallback */}
       {[-2, -1, 0, 1, 2, 3].map(i => (
         <g key={`gr-${i}`}>
           <line x1={svgViewX} y1={viewportY + i * 400} x2={svgViewX + svgViewW} y2={viewportY + i * 400}
@@ -573,10 +498,6 @@ function FallbackMap({ svgViewX, svgViewY, svgViewW, svgViewH, viewportX, viewpo
             stroke="#181714" strokeWidth="45" />
         </g>
       ))}
-      <text x={svgViewX + svgViewW / 2} y={svgViewY + svgViewH / 2}
-        textAnchor="middle" fontFamily="monospace" fontSize="12" fill="#333">
-        Mapa offline — verifique a conexão
-      </text>
     </svg>
   );
 }

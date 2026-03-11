@@ -12,6 +12,15 @@ import ZombieSprite from './ZombieSprite';
 import StreetMap from './StreetMap';
 import { parseCustomCSS } from '@/lib/cssParser';
 
+interface VisualProjectile {
+  id: string;
+  sx: number;
+  sy: number;
+  tx: number;
+  ty: number;
+  progress: number;
+}
+
 export function useWindowSize() {
   const [size, setSize] = useState({ w: 800, h: 600 });
   useEffect(() => {
@@ -77,6 +86,7 @@ export default function GameCanvas() {
   const [playerDir, setPlayerDir] = useState(0);
   const [windowSize, setWindowSize] = useState({ w: 800, h: 600 });
   const [currentTarget, setCurrentTarget] = useState<string | null>(null);
+  const [projectiles, setProjectiles] = useState<VisualProjectile[]>([]);
 
   // ── Window size ──
   useEffect(() => {
@@ -112,6 +122,22 @@ export default function GameCanvas() {
     playerPosRef.current = { x: pixelX, y: pixelY };
     setPlayerPixel(pixelX, pixelY);
   }, [player?.id]);
+
+  // ── Limpeza de itens em zonas proibidas (prédios) ──
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const cleanupItems = () => {
+      const state = useGameStore.getState();
+      const invalidItems = state.worldItems.filter(item => !isPointOnWalkableRoad(item.pos_x, item.pos_y));
+      if (invalidItems.length > 0) {
+        invalidItems.forEach(item => removeWorldItem(item.id));
+      }
+    };
+    // Executa após um pequeno delay para garantir que o SVG carregou
+    const timer = setTimeout(cleanupItems, 2000);
+    return () => clearTimeout(timer);
+  }, [status, tiles.size]);
+
 
   // ── Teclado (WASD + Novas Teclas) ──
   useEffect(() => {
@@ -236,7 +262,8 @@ export default function GameCanvas() {
           const newZombie = createSpawnZombie(
             playerPosRef.current.x, playerPosRef.current.y,
             originTileRef.current.x, originTileRef.current.y,
-            avgLevel
+            avgLevel,
+            isPointOnWalkableRoad
           );
           setZombie(newZombie as any);
         }
@@ -375,6 +402,18 @@ export default function GameCanvas() {
           setZombie({ ...freshTarget, current_health: newHp });
         }
       }
+
+      // Sistema visual do projétil
+      const newProj: VisualProjectile = {
+        id: Math.random().toString(36).slice(2),
+        sx: px,
+        sy: py,
+        tx: target.pos_x,
+        ty: target.pos_y,
+        progress: 0,
+      };
+      setProjectiles(prev => [...prev, newProj]);
+
       return true;
     };
 
@@ -605,6 +644,13 @@ export default function GameCanvas() {
       // Atualiza zumbis
       updateZombies(dt, p, px, py);
 
+      setProjectiles(prev => {
+        if (prev.length === 0) return prev;
+        return prev
+          .map(pj => ({ ...pj, progress: pj.progress + dt * 4.5 })) // Um pouco mais lento (era 6)
+          .filter(pj => pj.progress < 1);
+      });
+
       // Pre-load tiles OSM
       prefetchNearbyTiles();
 
@@ -649,6 +695,20 @@ export default function GameCanvas() {
           playerLng={player.last_lng || 0}
         />
 
+        {projectiles.map(pj => {
+          const x = pj.sx + (pj.tx - pj.sx) * pj.progress;
+          const y = pj.sy + (pj.ty - pj.sy) * pj.progress;
+          const angle = Math.atan2(pj.ty - pj.sy, pj.tx - pj.sx) * 180 / Math.PI;
+          return (
+            <div key={pj.id} className="projectile-ember" style={{
+              left: x - viewportX,
+              top: y - viewportY,
+              transform: `rotate(${angle}deg)`,
+            }} />
+          );
+        })}
+
+        {/* ── ITENS NO CHÃO ── */}
       {/* ── Vinheta ambiente pós-apocalipse ── */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
