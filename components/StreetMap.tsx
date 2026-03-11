@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { GAME_TILE_PX, OSM_ZOOM } from '@/lib/osmTiles';
 import { fetchAreaData, OsmWay, ROAD_WIDTHS_M, ROAD_IS_MAJOR } from '@/lib/overpassApi';
+import { useGameStore } from '@/lib/store';
 
 // ──────────────────────────────────────────────────────
 //  STREET MAP — Mapa pós-apocalíptico em SVG
@@ -159,13 +160,15 @@ function WeedCluster({ cx, cy, size, rand }: { cx: number; cy: number; size: num
 }
 
 /* ── Prédio 3D fake (Extrusão SVG) ── */
-function Building3D({ pts, height = 25, color = '#151515', id }: { pts: { x: number; y: number }[], height?: number, color?: string, id: string | number }) {
-  // Configuração do Sol (Fim de tarde: Baixo e vindo do Oeste/Esquerda)
-  const sunAngleX = -0.5; 
-  const sunAngleY = -0.6; 
-  const shadowLen = height * 1.1;
-  const roofOffsetX = sunAngleX * height * 0.45;
-  const roofOffsetY = sunAngleY * height * 0.45;
+function Building3D({ pts, height = 25, color = '#151515', id, isNight }: { pts: { x: number; y: number }[], height?: number, color?: string, id: string | number, isNight: boolean }) {
+  // Configuração do Sol
+  // Dia: Sol a pino (Sombra curta e centralizada)
+  // Noite/Fim de tarde: Baixo e vindo do Oeste (Sombra longa)
+  const sunAngleX = isNight ? -0.5 : -0.1; 
+  const sunAngleY = isNight ? -0.6 : -0.1; 
+  const shadowLen = isNight ? height * 1.1 : height * 0.2;
+  const roofOffsetX = sunAngleX * height * (isNight ? 0.45 : 0.1);
+  const roofOffsetY = sunAngleY * height * (isNight ? 0.45 : 0.1);
 
   const roofPts = pts.map(p => ({ x: p.x + roofOffsetX, y: p.y + roofOffsetY }));
   const shadowPts = pts.map(p => ({ x: p.x + sunAngleX * shadowLen, y: p.y - sunAngleY * shadowLen }));
@@ -184,10 +187,12 @@ function Building3D({ pts, height = 25, color = '#151515', id }: { pts: { x: num
         // Brilho facetado baseado no sol
         const dx = p2.x - p1.x; const dy = p2.y - p1.y;
         const ang = Math.atan2(dy, dx);
-        // Face voltada para o sol (Oeste) fica mais clara
+        // Face voltada para o sol fica mais clara
         const sunDot = Math.cos(ang - Math.PI); 
-        const brightness = 0.4 + (sunDot + 1) * 0.45;
-        const wallColor = brightness > 0.8 ? '#332a20' : color;
+        const brightness = isNight 
+          ? 0.4 + (sunDot + 1) * 0.45 
+          : 0.7 + (sunDot + 1) * 0.15;
+        const wallColor = (isNight && brightness > 0.8) ? '#332a20' : color;
         
         return (
           <polygon key={i} points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${r2.x},${r2.y} ${r1.x},${r1.y}`} 
@@ -205,7 +210,7 @@ function Building3D({ pts, height = 25, color = '#151515', id }: { pts: { x: num
 }
 
 /* ── Pequenas Construções Procedurais (Props) ── */
-function SmallProp({ cx, cy, type, rand }: { cx: number; cy: number; type: 'shack' | 'container' | 'debris'; rand: () => number }) {
+function SmallProp({ cx, cy, type, rand, isNight }: { cx: number; cy: number; type: 'shack' | 'container' | 'debris'; rand: () => number, isNight: boolean }) {
   const w = type === 'container' ? 40 : 25;
   const h = type === 'container' ? 18 : 25;
   const color = type === 'container' ? '#2a3b4a' : '#222';
@@ -214,7 +219,7 @@ function SmallProp({ cx, cy, type, rand }: { cx: number; cy: number; type: 'shac
     return (
        <g transform={`translate(${cx},${cy}) rotate(${(rand() * 360).toFixed(1)})`}>
          {/* Sombra */}
-         <rect x={12} y={10} width={w} height={h} fill="rgba(20,10,0,0.4)" style={{ filter: 'blur(1px)' }} />
+         <rect x={isNight ? 12 : 3} y={isNight ? 10 : 3} width={w} height={h} fill={isNight ? "rgba(20,10,0,0.4)" : "rgba(0,0,0,0.15)"} style={{ filter: isNight ? 'blur(1px)' : 'none' }} />
          {/* Parede lateral fake */}
          <rect x={-w/2} y={-h/2} width={w} height={h} fill={color} filter="brightness(0.6)" />
          {/* Teto do container (Solid Object) */}
@@ -231,7 +236,7 @@ function SmallProp({ cx, cy, type, rand }: { cx: number; cy: number; type: 'shac
     return (
       <g transform={`translate(${cx},${cy})`}>
         {/* Sombra */}
-        <rect x={8} y={8} width={24} height={24} fill="rgba(20,10,0,0.35)" style={{ filter: 'blur(1px)' }} />
+        <rect x={isNight ? 8 : 2} y={isNight ? 8 : 2} width={24} height={24} fill={isNight ? "rgba(20,10,0,0.35)" : "rgba(0,0,0,0.15)"} style={{ filter: isNight ? 'blur(1px)' : 'none' }} />
         {/* Paredes */}
         <rect x={-10} y={-10} width={20} height={20} fill="#2a1f1a" stroke="#111" />
         {/* Teto (Solid Object) */}
@@ -254,6 +259,7 @@ export default function StreetMap({
   viewportX, viewportY, screenW, screenH,
   originTileX, originTileY, playerLat, playerLng,
 }: Props) {
+  const isNight = useGameStore(state => state.isNight);
   const [ways, setWays] = useState<OsmWay[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const waysMapRef = useRef<Map<number, OsmWay>>(new Map());
@@ -355,7 +361,9 @@ export default function StreetMap({
           left: -buffer, top: -buffer, 
           width: svgViewW, height: svgViewH, 
           overflow: 'visible',
-          filter: 'sepia(0.4) saturate(1.6) contrast(1.1) drop-shadow(0 0 30px rgba(255,100,0,0.1))'
+          filter: isNight 
+            ? 'sepia(0.4) saturate(1.6) contrast(1.1) drop-shadow(0 0 30px rgba(255,100,0,0.1))'
+            : 'none'
         }}
         viewBox={`${svgViewX} ${svgViewY} ${svgViewW} ${svgViewH}`}
       >
@@ -442,7 +450,7 @@ export default function StreetMap({
           if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
               maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
           const rand = seededRand(way.id);
-          return <Building3D key={`b3d-${way.id}`} pts={pts} id={way.id} height={25 + rand() * 45} color={BUILDING} />;
+          return <Building3D key={`b3d-${way.id}`} pts={pts} id={way.id} height={25 + rand() * 45} color={BUILDING} isNight={isNight} />;
         })}
 
         {/* ── PEQUENAS CONSTRUÇÕES E DECORAÇÕES ── */}
@@ -470,7 +478,7 @@ export default function StreetMap({
              const wy = pos.y + Math.sin((pos.angle+90)*Math.PI/180) * (roadPx + 15) * side;
              
              if (rand() > 0.7) {
-               el.push(<SmallProp key={`p-${i}`} cx={wx} cy={wy} type={rand() > 0.5 ? 'container' : 'shack'} rand={rand} />);
+               el.push(<SmallProp key={`p-${i}`} cx={wx} cy={wy} type={rand() > 0.5 ? 'container' : 'shack'} rand={rand} isNight={isNight} />);
              } else {
                el.push(<WeedCluster key={`w-${i}`} cx={wx} cy={wy} size={15+rand()*10} rand={rand} />);
              }

@@ -99,6 +99,10 @@ interface GameState {
   damageNumbers: DamageNumber[];
   addDamageNumber: (dn: Omit<DamageNumber, 'id' | 'createdAt'>) => void;
   clearOldDamageNumbers: () => void;
+  
+  // Real-time lighting
+  isNight: boolean;
+  setIsNight: (isNight: boolean) => void;
 
   // Notifications
   notifications: Array<{ id: string; message: string; type: 'info' | 'success' | 'warning' | 'danger'; createdAt: number }>;
@@ -106,6 +110,10 @@ interface GameState {
   clearNotification: (id: string) => void;
   activeWeaponSlot: 'primary' | 'secondary';
   setActiveWeaponSlot: (slot: 'primary' | 'secondary') => void;
+
+  // Camera Zoom
+  cameraZoom: number;
+  setCameraZoom: (zoom: number) => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -250,8 +258,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     })),
   clearOldDamageNumbers: () =>
     set((state) => ({
-      damageNumbers: state.damageNumbers.filter((dn) => Date.now() - dn.createdAt < 1500),
+      damageNumbers: state.damageNumbers.filter((dn) => Date.now() - dn.createdAt < 2000),
     })),
+
+  // Lighting
+  isNight: false,
+  setIsNight: (isNight) => set({ isNight }),
 
   // Notifications
   notifications: [],
@@ -268,4 +280,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     })),
   activeWeaponSlot: 'primary',
   setActiveWeaponSlot: (activeWeaponSlot) => set({ activeWeaponSlot }),
+
+  // Camera Zoom
+  cameraZoom: 1,
+  setCameraZoom: (cameraZoom) => set({ cameraZoom }),
 }));

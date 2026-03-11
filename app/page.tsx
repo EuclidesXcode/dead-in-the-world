@@ -195,6 +195,11 @@ export default function LandingPage() {
       <BloodSplat style={{ width: 200, height: 120, top: '5%', left: '2%' }} />
       <BloodSplat style={{ width: 150, height: 90, bottom: '15%', right: '3%' }} />
       <BloodSplat style={{ width: 80, height: 50, top: '30%', right: '8%' }} />
+      
+      {/* ─── Fundo: Mapa Global ─── */}
+      <div className="absolute inset-0 opacity-60" style={{ zIndex: -1, pointerEvents: 'none' }}>
+        <WorldMap />
+      </div>
 
       {/* ─── Vinheta ─── */}
       <div className="vignette" />
@@ -343,10 +348,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Mapa global — onde o mundo está sendo conquistado */}
-        <div className="mt-8 w-full retro-panel p-4" style={{ maxWidth: 560 }}>
-          <WorldMap />
-        </div>
 
         {/* Stats globais reais */}
         <div className="mt-6 flex gap-8 text-center flex-wrap justify-center">

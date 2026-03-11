@@ -79,6 +79,7 @@ export default function GameCanvas() {
     addNotification,
     setEquippedWeapon,
     activeWeaponSlot, setActiveWeaponSlot,
+    cameraZoom,
   } = useGameStore();
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -643,7 +644,8 @@ export default function GameCanvas() {
       const showInventory = useGameStore.getState().showInventory;
       
       const { w: screenW, h: screenH } = windowSize;
-      const zoom = screenW < 768 ? 0.65 : 1.0;
+      const baseZoom = screenW < 768 ? 0.65 : 1.0;
+      const zoom = baseZoom * useGameStore.getState().cameraZoom;
       const w = screenW / zoom;
       const h = screenH / zoom;
 
@@ -764,7 +766,8 @@ export default function GameCanvas() {
 
   if (!player) return null;
 
-  const zoom = windowSize.w < 768 ? 0.65 : 1.0;
+  const baseZoom = windowSize.w < 768 ? 0.65 : 1.0;
+  const zoom = baseZoom * cameraZoom;
   const w = windowSize.w / zoom;
   const h = windowSize.h / zoom;
 

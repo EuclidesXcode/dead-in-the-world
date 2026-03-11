@@ -168,6 +168,12 @@ export const ITEM_DATABASE: Record<string, {
     stats: { craft_value: 1 },
     description: 'Essencial pra fazer munição', emoji: '🧨',
   },
+  drone: {
+    item_id: 'drone', item_name: 'Controle de Drone', item_type: 'utility',
+    weight: 0.8, rarity: 'rare',
+    stats: { zoom_out: 0.5, duration: 10000 },
+    description: 'Visualiza a área de cima (Zoom Out) por 10s', emoji: '🎮',
+  },
 };
 
 // Tabelas de loot por tipo de tile
@@ -185,6 +191,7 @@ const LOOT_TABLES: Record<TileType, Array<{ item_id: string; weight: number; qua
     { item_id: 'bandage', weight: 20, quantity: [1, 3] },
     { item_id: 'scrap_metal', weight: 15, quantity: [2, 5] },
     { item_id: 'knife', weight: 10, quantity: [1, 1] },
+    { item_id: 'drone', weight: 3, quantity: [1, 1] },
   ],
   hospital: [
     { item_id: 'medkit', weight: 35, quantity: [1, 2] },
@@ -199,6 +206,7 @@ const LOOT_TABLES: Record<TileType, Array<{ item_id: string; weight: number; qua
     { item_id: 'energy_bar', weight: 20, quantity: [2, 5] },
     { item_id: 'ammo_9mm', weight: 10, quantity: [5, 15] },
     { item_id: 'knife', weight: 5, quantity: [1, 1] },
+    { item_id: 'drone', weight: 5, quantity: [1, 1] },
   ],
   military_base: [
     { item_id: 'rifle', weight: 20, quantity: [1, 1] },
@@ -208,6 +216,7 @@ const LOOT_TABLES: Record<TileType, Array<{ item_id: string; weight: number; qua
     { item_id: 'silencer', weight: 10, quantity: [1, 1] },
     { item_id: 'scope', weight: 10, quantity: [1, 1] },
     { item_id: 'medkit', weight: 10, quantity: [1, 2] },
+    { item_id: 'drone', weight: 8, quantity: [1, 1] },
   ],
   forest: [
     { item_id: 'canned_food', weight: 40, quantity: [1, 3] },

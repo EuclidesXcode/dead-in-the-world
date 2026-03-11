@@ -1,5 +1,5 @@
-'use client';
 import React, { useEffect, useState, useRef } from 'react';
+import { useGameStore } from '@/lib/store';
 
 // ──────────────────────────────────────────────────────
 //  PLAYER CSS SPRITE — estilo retro pixel art (GTA 1 / Mario)
@@ -39,6 +39,8 @@ export default function PlayerSprite({
   username,
   customStyles = {},
 }: PlayerSpriteProps) {
+  const isNight = useGameStore(state => state.isNight);
+  const s = scale;
   const [hurtState, setHurtState] = useState(false);
   const prevHealthRef = useRef(health);
 
@@ -133,14 +135,14 @@ export default function PlayerSprite({
       >
         {/* ══ CABEÇA (bobbing independente) ══ */}
         <div className={isMoving ? 'anim-head-bob' : ''} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 12 }}>
-          <Head skinColor={skinColor} hairColor={hairColor} scale={scale} isLocal={isLocal} customStyles={customStyles} />
+          <Head skinColor={skinColor} hairColor={hairColor} scale={scale} isLocal={isLocal} customStyles={customStyles} isNight={isNight} />
         </div>
 
         {/* ══ MOCHILA ══ */}
         <Backpack scale={scale} color="#3d2b1f" customStyles={customStyles} />
 
         {/* ══ CORPO ══ */}
-        <Body skinColor={skinColor} shirtColor={shirtColor} pantsColor={pantsColor} scale={scale} isMoving={isMoving} isAttacking={isAttacking} customStyles={customStyles} />
+        <Body skinColor={skinColor} shirtColor={shirtColor} pantsColor={pantsColor} scale={scale} isMoving={isMoving} isAttacking={isAttacking} customStyles={customStyles} isNight={isNight} />
 
         {/* ══ SOMBRA DINÂMICA ══ */}
         <div style={{
@@ -163,7 +165,7 @@ export default function PlayerSprite({
 }
 
 // ── Cabeça detalhada ──
-function Head({ skinColor, hairColor, scale, isLocal, customStyles }: any) {
+function Head({ skinColor, hairColor, scale, isLocal, customStyles, isNight }: any) {
   const s = scale;
   return (
     <div style={{ position: 'absolute', top: 0, left: 4 * s, width: 24 * s, height: 18 * s, imageRendering: 'pixelated', ...customStyles.head }}>
@@ -177,7 +179,7 @@ function Head({ skinColor, hairColor, scale, isLocal, customStyles }: any) {
         ...customStyles.headBase
       }}>
         {/* Rim Light (Sun) */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '40%', height: '30%', background: 'rgba(255,200,80,0.5)', filter: 'blur(1px)' }} />
+        {isNight && <div style={{ position: 'absolute', top: 0, left: 0, width: '40%', height: '30%', background: 'rgba(255,200,80,0.5)', filter: 'blur(1px)' }} />}
       </div>
       {/* Cabelo com mechas */}
       <div style={{
@@ -255,7 +257,7 @@ function Backpack({ scale, color, customStyles }: any) {
 
 
 // ── Corpo detalhado ──
-function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking, customStyles }: any) {
+function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking, customStyles, isNight }: any) {
   const s = scale;
   // Classes de Animação CSS 
   const legLeftClass = isMoving ? 'anim-leg-left' : '';
@@ -280,7 +282,7 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking,
           pointerEvents: 'none'
         }} />
         {/* Rim Light (Sun) */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '30%', height: '50%', background: 'rgba(255,200,80,0.4)', filter: 'blur(1.5px)' }} />
+        {isNight && <div style={{ position: 'absolute', top: 0, left: 0, width: '30%', height: '50%', background: 'rgba(255,200,80,0.4)', filter: 'blur(1.5px)' }} />}
         
         {/* Detalhe bolso superior */}
         <div style={{ position: 'absolute', top: 3 * s, left: 3 * s, width: 8 * s, height: 7 * s, background: 'rgba(0,0,0,0.15)', border: `${s}px solid rgba(255,255,255,0.05)`, borderRadius: 1 }} />

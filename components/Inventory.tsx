@@ -13,6 +13,7 @@ export default function Inventory() {
     equippedSecondaryWeapon, setEquippedSecondaryWeapon,
     addNotification, addDamageNumber, viewportX, viewportY,
     playerPixelX, playerPixelY,
+    setCameraZoom,
   } = useGameStore();
 
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
@@ -60,6 +61,26 @@ export default function Inventory() {
         setSelectedItem(null);
       } else {
         updateInventoryItem(item.id, { quantity: item.quantity - 1 });
+      }
+    } else if (item.item_id === 'drone') {
+      const zoomValue = (item.stats as any)?.zoom_out || 0.5;
+      const duration = (item.stats as any)?.duration || 10000;
+      
+      setCameraZoom(zoomValue);
+      addNotification(`🚁 Drone ativado! Zoom Out por ${duration/1000}s`, 'success');
+      
+      setTimeout(() => {
+        setCameraZoom(1.0);
+        addNotification(`Drone retornou ao sinal.`, 'info');
+      }, duration);
+
+      if (item.quantity <= 1) {
+        removeInventoryItem(item.id);
+        await supabase.from('inventory').delete().eq('id', item.id);
+        setSelectedItem(null);
+      } else {
+        updateInventoryItem(item.id, { quantity: item.quantity - 1 });
+        await supabase.from('inventory').update({ quantity: item.quantity - 1 }).eq('id', item.id);
       }
     } else if (item.item_type === 'weapon') {
       // Por padrão, useItem equipado na primária se nada for dito
@@ -424,7 +445,7 @@ export default function Inventory() {
                         </button>
                       </div>
                     )}
-                    {(selected.item_type === 'heal' || selected.item_type === 'food' || selected.item_type === 'water') && (
+                    {(selected.item_type === 'heal' || selected.item_type === 'food' || selected.item_type === 'water' || selected.item_type === 'utility') && (
                       <button
                         className="btn-retro btn-retro-green"
                         onClick={() => useItem(selected)}

@@ -33,6 +33,7 @@ export default function GamePage() {
     setGameRunning,
     viewportX, viewportY,
     playerPixelX, playerPixelY,
+    isNight, setIsNight,
   } = useGameStore();
 
   const [status, setStatus] = useState<LoadStatus>('auth');
@@ -43,6 +44,15 @@ export default function GamePage() {
   // ── 1. Auth check ──
   useEffect(() => {
     initGame();
+    
+    // Check time of day (Sunset/Night starts at 18:00)
+    const checkTime = () => {
+      const hour = new Date().getHours();
+      setIsNight(hour >= 18 || hour < 6);
+    };
+    checkTime();
+    const interval = setInterval(checkTime, 60000); // Check every minute
+    return () => clearInterval(interval);
   }, []);
 
   const initGame = async () => {
@@ -445,7 +455,7 @@ export default function GamePage() {
   }
 
   return (
-    <div className="game-container" style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+    <div className={`game-container ${isNight ? 'time-night' : 'time-day'}`} style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
       {/* Efeitos de fundo */}
       <div className="scanlines" />
       <div className="vignette" />

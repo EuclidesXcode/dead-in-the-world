@@ -6,7 +6,7 @@ import { osmTileToWorldMapPx, OSM_ZOOM } from '@/lib/osmTiles';
 interface ExploredPoint { tileX: number; tileY: number; }
 interface ActivePlayer { lat: number; lng: number; username: string; }
 
-export default function WorldMap() {
+export default function WorldMap({ isBackground = false }: { isBackground?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stats, setStats] = useState({ tiles: 0, players: 0 });
   const [loading, setLoading] = useState(true);
@@ -22,6 +22,12 @@ export default function WorldMap() {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Reseta canvas se background
+    if (isBackground) {
+       canvas.width = window.innerWidth;
+       canvas.height = window.innerHeight;
+    }
 
     const W = canvas.width;
     const H = canvas.height;
@@ -121,33 +127,35 @@ export default function WorldMap() {
   };
 
   return (
-    <div style={{ position: 'relative' }}>
-      {/* Título */}
-      <div className="flex items-center justify-between mb-3">
-        <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: '#8b0000' }}>
-          🌍 MAPA GLOBAL
+    <div style={{ position: 'relative', width: isBackground ? '100%' : 'auto', height: isBackground ? '100%' : 'auto' }}>
+      {!isBackground && (
+        <div className="flex items-center justify-between mb-3">
+          <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: '#8b0000' }}>
+            🌍 MAPA GLOBAL
+          </div>
+          <div style={{ display: 'flex', gap: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 9 }}>
+            <span style={{ color: '#dc2626' }}>
+              <span style={{ display: 'inline-block', width: 6, height: 6, background: '#8b0000', borderRadius: '50%', marginRight: 4 }} />
+              {stats.tiles.toLocaleString()} tiles
+            </span>
+            <span style={{ color: '#39ff14' }}>
+              <span style={{ display: 'inline-block', width: 6, height: 6, background: '#39ff14', borderRadius: '50%', marginRight: 4 }} />
+              {stats.players} online
+            </span>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 9 }}>
-          <span style={{ color: '#dc2626' }}>
-            <span style={{ display: 'inline-block', width: 6, height: 6, background: '#8b0000', borderRadius: '50%', marginRight: 4 }} />
-            {stats.tiles.toLocaleString()} tiles
-          </span>
-          <span style={{ color: '#39ff14' }}>
-            <span style={{ display: 'inline-block', width: 6, height: 6, background: '#39ff14', borderRadius: '50%', marginRight: 4 }} />
-            {stats.players} online
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Canvas do mapa */}
-      <div style={{ position: 'relative', border: '1px solid #1a1a1a' }}>
+      <div style={{ position: 'relative', border: isBackground ? 'none' : '1px solid #1a1a1a', width: '100%', height: isBackground ? '100%' : 'auto' }}>
         <canvas
           ref={canvasRef}
-          width={520}
-          height={260}
+          width={isBackground ? undefined : 520}
+          height={isBackground ? undefined : 260}
           style={{
             display: 'block',
             width: '100%',
+            height: isBackground ? '100%' : 'auto',
             imageRendering: 'pixelated',
           }}
         />
@@ -165,21 +173,25 @@ export default function WorldMap() {
         )}
 
         {/* Legenda */}
-        <div style={{
-          position: 'absolute', bottom: 6, left: 8,
-          fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: 'rgba(255,255,255,0.2)',
-        }}>
-          © OpenStreetMap contributors
-        </div>
+        {!isBackground && (
+          <div style={{
+            position: 'absolute', bottom: 6, left: 8,
+            fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: 'rgba(255,255,255,0.2)',
+          }}>
+            © OpenStreetMap contributors
+          </div>
+        )}
       </div>
 
       {/* Subtítulo */}
-      <div style={{
-        marginTop: 6, textAlign: 'center',
-        fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: '#333',
-      }}>
-        Cada ponto vermelho = área já explorada por sobreviventes
-      </div>
+      {!isBackground && (
+        <div style={{
+          marginTop: 6, textAlign: 'center',
+          fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: '#333',
+        }}>
+          Cada ponto vermelho = área já explorada por sobreviventes
+        </div>
+      )}
     </div>
   );
 }

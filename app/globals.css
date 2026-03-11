@@ -280,7 +280,7 @@ html, body {
 }
 
 /* Overlay de Sol (Fim de Tarde) */
-.game-container::before {
+.game-container.time-night::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -291,7 +291,7 @@ html, body {
 }
 
 /* Vinheta / Atmosfera Pós-apocalíptica */
-.game-container::after {
+.game-container.time-night::after {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -303,7 +303,7 @@ html, body {
 }
 
 /* Partículas de poeira no ar */
-.dust-mote {
+.time-night .dust-mote {
   position: absolute;
   width: 2px; height: 2px;
   background: rgba(255, 200, 100, 0.4);
@@ -311,6 +311,10 @@ html, body {
   pointer-events: none;
   z-index: 120;
   animation: float-dust 10s infinite linear;
+}
+
+.time-day .dust-mote {
+  display: none;
 }
 
 @keyframes float-dust {
