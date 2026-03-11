@@ -304,7 +304,7 @@ export default function StreetMap({
           const rand = seededRand(way.id);
           return (
             <g key={`green-${way.id}`}>
-              <polygon points={ptsToPolygon(pts)} fill={GREEN_DARK} stroke="#0a1304" strokeWidth="1" />
+              <polygon className="walkable-road" points={ptsToPolygon(pts)} fill={GREEN_DARK} stroke="#0a1304" strokeWidth="1" />
               {/* Mato denso na área verde */}
               {Array.from({ length: 8 }, (_, i) => {
                 const cx = pts[0].x + (rand() - 0.5) * 120;
