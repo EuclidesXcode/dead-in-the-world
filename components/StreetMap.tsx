@@ -163,19 +163,53 @@ export default function StreetMap({
 }: Props) {
   const [ways, setWays] = useState<OsmWay[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const loadedRef = useRef(false);
+  const waysMapRef = useRef<Map<number, OsmWay>>(new Map());
+  const lastFetchRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // Buffer de cálculo para culling (margem menor que buffer SVG para desenhar um pouco fora)
   const cullBuffer = 300;
 
-  // Busca dados OSM uma vez ao montar
-  useEffect(() => {
-    if (loadedRef.current || !playerLat || !playerLng) return;
-    loadedRef.current = true;
+  function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371e3;
+    const p1 = lat1 * Math.PI / 180;
+    const p2 = lat2 * Math.PI / 180;
+    const dp = (lat2 - lat1) * Math.PI / 180;
+    const dl = (lon1 - lon2) * Math.PI / 180;
+    const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
 
-    fetchAreaData(playerLat, playerLng, 700)
-      .then(data => { setWays(data); setStatus('ready'); })
-      .catch(() => setStatus('error'));
+  // Busca dados OSM do raio inicial e carrega mais quando chega perto da borda (~40km quadrados = raio ~3500m)
+  useEffect(() => {
+    if (!playerLat || !playerLng) return;
+
+    const FETCH_RADIUS = 3500; // ~38km2 -> diametro de 7km
+    const FETCH_MARGIN = 1500; // Recarrega se andar muito (distância > 2000m)
+
+    let needsFetch = false;
+    if (!lastFetchRef.current) {
+      needsFetch = true;
+    } else {
+      const dist = getDistanceMeters(playerLat, playerLng, lastFetchRef.current.lat, lastFetchRef.current.lng);
+      if (dist > (FETCH_RADIUS - FETCH_MARGIN)) {
+        needsFetch = true;
+      }
+    }
+
+    if (needsFetch) {
+      if (!lastFetchRef.current) setStatus('loading');
+      lastFetchRef.current = { lat: playerLat, lng: playerLng };
+      
+      fetchAreaData(playerLat, playerLng, FETCH_RADIUS)
+        .then(data => {
+          data.forEach(w => waysMapRef.current.set(w.id, w));
+          setWays(Array.from(waysMapRef.current.values()));
+          setStatus('ready');
+        })
+        .catch(() => {
+          if (waysMapRef.current.size === 0) setStatus('error');
+        });
+    }
   }, [playerLat, playerLng]);
 
   // Categorias de elementos

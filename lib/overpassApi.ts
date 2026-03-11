@@ -22,7 +22,7 @@ export interface OverpassResult {
 // Busca ruas, prédios, parques de um raio em torno de lat/lng
 export async function fetchAreaData(lat: number, lng: number, radiusMeters = 700): Promise<OsmWay[]> {
   const query = `
-[out:json][timeout:30];
+[out:json][timeout:90];
 (
   way["highway"](around:${radiusMeters},${lat},${lng});
   way["building"](around:${radiusMeters},${lat},${lng});
