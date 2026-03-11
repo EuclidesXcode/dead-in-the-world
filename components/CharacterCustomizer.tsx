@@ -112,8 +112,11 @@ export default function CharacterCustomizer() {
             <button 
               className={`btn-retro ${activeTab === 'css' ? 'btn-retro-yellow' : ''}`} 
               onClick={() => setActiveTab('css')} 
-              style={{ padding: '4px 8px', fontSize: 8 }}
-            >CSS EXPERT</button>
+              style={{ padding: '4px 8px', fontSize: 8, position: 'relative' }}
+            >
+              CSS EXPERT
+              {!player.has_css_access && <span style={{ position: 'absolute', top: -4, right: -4, fontSize: 10 }}>🔒</span>}
+            </button>
           </div>
           <button className="btn-retro btn-retro-red" onClick={toggleCharCustomizer} style={{ padding: '4px 8px', fontSize: 9 }}>✕</button>
         </div>
@@ -225,31 +228,84 @@ export default function CharacterCustomizer() {
             {activeTab === 'css' && (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div className="pixel-font mb-2" style={{ fontSize: 8, color: '#39ff14' }}>EDITOR CSS DO PERSONAGEM</div>
-                <div style={{ fontSize: 7, color: '#666', marginBottom: 8, fontFamily: 'monospace' }}>
-                   * Apenas propriedades visuais permitidas (background, border, box-shadow, filter). Posicionamento e escala bloqueados.
-                </div>
-                <textarea
-                  value={preview.custom_css}
-                  onChange={(e) => setPreview(p => ({ ...p, custom_css: e.target.value }))}
-                  placeholder={defaultCSSTemplate}
-                  style={{
-                    flex: 1,
-                    minHeight: 260,
-                    background: '#000',
-                    color: '#39ff14',
-                    border: '1px solid #222',
-                    padding: 8,
-                    fontSize: 10,
-                    fontFamily: "'Share Tech Mono', monospace",
-                    resize: 'none',
-                    outline: 'none',
-                  }}
-                />
-                <button 
-                  className="btn-retro" 
-                  onClick={() => setPreview(p => ({ ...p, custom_css: defaultCSSTemplate }))}
-                  style={{ marginTop: 8, fontSize: 7, alignSelf: 'flex-start' }}
-                >LIMPAR / USAR TEMPLATE</button>
+                
+                {!player.has_css_access ? (
+                  <div style={{ 
+                    flex: 1, 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    background: 'rgba(20,0,0,0.4)',
+                    border: '1px dashed #dc2626',
+                    padding: 24,
+                    textAlign: 'center'
+                  }}>
+                    <div className="pixel-font" style={{ fontSize: 14, color: '#f59e0b', marginBottom: 16 }}>🔒 RECURSO BLOQUEADO</div>
+                    <div style={{ fontSize: 10, color: '#fff', marginBottom: 20, maxWidth: 300, lineHeight: 1.5 }}>
+                      O acesso ao CSS Expert requer um pagamento único de <span style={{ color: '#39ff14' }}>R$ 2,00</span> para manutenção dos servidores.
+                    </div>
+                    
+                    <div style={{ background: '#000', padding: 12, border: '1px solid #333', width: '100%', marginBottom: 12 }}>
+                      <div style={{ fontSize: 8, color: '#666', marginBottom: 8 }}>CHAVE PIX:</div>
+                      <div style={{ fontSize: 8, color: '#39ff14', wordBreak: 'break-all', fontFamily: 'monospace', marginBottom: 12 }}>
+                        00020101021126830014br.gov.bcb.pix01366c83942f-54fb-4f40-aabb-e44ca2f84f1a0221Liberação CSS Profile52040000530398654041.995802BR5925EUCLIDES RUFO SILVA DO NA6008BRASILIA62170513SXQRDeadWorld6304282B
+                      </div>
+                      <button 
+                        className="btn-retro" 
+                        style={{ fontSize: 7, width: '100%' }}
+                        onClick={() => {
+                          navigator.clipboard.writeText("00020101021126830014br.gov.bcb.pix01366c83942f-54fb-4f40-aabb-e44ca2f84f1a0221Liberação CSS Profile52040000530398654041.995802BR5925EUCLIDES RUFO SILVA DO NA6008BRASILIA62170513SXQRDeadWorld6304282B");
+                          alert("PIX Copiado!");
+                        }}
+                      >COPIAR CÓDIGO PIX</button>
+                    </div>
+
+                    <div style={{ fontSize: 8, color: '#666', marginBottom: 20 }}>
+                      * Após o pagamento, o acesso será liberado automaticamente em alguns minutos.
+                    </div>
+                    
+                    {/* Botão de dev para testes - em produção remover ou linkar ao webhook */}
+                    <button 
+                      className="btn-retro btn-retro-green" 
+                      style={{ fontSize: 8 }}
+                      onClick={async () => {
+                        if (window.confirm("Simular aprovação de pagamento PIX?")) {
+                          await supabase.from('players').update({ has_css_access: true }).eq('id', player.id);
+                          updatePlayerStats({ has_css_access: true });
+                        }
+                      }}
+                    >SIMULAR CONFIRMAÇÃO (DEV ONLY)</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 7, color: '#666', marginBottom: 8, fontFamily: 'monospace' }}>
+                       * Apenas propriedades visuais permitidas (background, border, box-shadow, filter). Posicionamento e escala bloqueados.
+                    </div>
+                    <textarea
+                      value={preview.custom_css}
+                      onChange={(e) => setPreview(p => ({ ...p, custom_css: e.target.value }))}
+                      placeholder={defaultCSSTemplate}
+                      style={{
+                        flex: 1,
+                        minHeight: 260,
+                        background: '#000',
+                        color: '#39ff14',
+                        border: '1px solid #222',
+                        padding: 8,
+                        fontSize: 10,
+                        fontFamily: "'Share Tech Mono', monospace",
+                        resize: 'none',
+                        outline: 'none',
+                      }}
+                    />
+                    <button 
+                      className="btn-retro" 
+                      onClick={() => setPreview(p => ({ ...p, custom_css: defaultCSSTemplate }))}
+                      style={{ marginTop: 8, fontSize: 7, alignSelf: 'flex-start' }}
+                    >LIMPAR / USAR TEMPLATE</button>
+                  </>
+                )}
               </div>
             )}
           </div>

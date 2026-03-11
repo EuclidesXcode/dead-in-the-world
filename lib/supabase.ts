@@ -93,6 +93,7 @@ export interface Player {
   is_online: boolean;
   last_seen: string;
   custom_css?: string;
+  has_css_access: boolean;
   created_at: string;
 }
 

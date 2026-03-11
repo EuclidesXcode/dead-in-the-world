@@ -16,6 +16,7 @@ interface ZombieSpriteProps {
   isAttacking?: boolean;
   scale?: number;
   showHealthBar?: boolean;
+  isAlive?: boolean;
 }
 
 export default function ZombieSprite({
@@ -27,6 +28,7 @@ export default function ZombieSprite({
   isAttacking = false,
   scale = 1,
   showHealthBar = true,
+  isAlive = true,
 }: ZombieSpriteProps) {
   const [hurtState, setHurtState] = useState(false);
   const prevHealthRef = useRef(health);
@@ -53,7 +55,8 @@ export default function ZombieSprite({
 
   const baseAnim = isMoving ? animTypeMap[zombieType] : 'anim-idle-breath';
   const hurtAnim = hurtState ? 'anim-hurt' : '';
-  const animClass = `${baseAnim} ${hurtAnim}`;
+  const deathAnim = !isAlive ? 'anim-zombie-death' : '';
+  const animClass = !isAlive ? deathAnim : `${baseAnim} ${hurtAnim}`;
 
   return (
     <div style={{
@@ -65,7 +68,7 @@ export default function ZombieSprite({
       transform: `scaleX(${facingLeft ? -1 : 1})`,
     }}>
       {/* Barra de vida do zumbi */}
-      {showHealthBar && (
+      {showHealthBar && isAlive && (
         <div style={{
           position: 'absolute',
           top: -8,
@@ -85,6 +88,17 @@ export default function ZombieSprite({
         {zombieType === 'runner' && <RunnerZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
         {zombieType === 'tank' && <TankZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
         {zombieType === 'screamer' && <ScreamerZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
+        
+        {/* Sangue ao morrer */}
+        {!isAlive && (
+          <div className="anim-blood" style={{
+            position: 'absolute', top: '50%', left: '50%',
+            width: 40 * scale, height: 40 * scale,
+            background: 'radial-gradient(circle, rgba(139,0,0,0.8) 0%, rgba(139,0,0,0.4) 40%, transparent 70%)',
+            borderRadius: '50%', pointerEvents: 'none',
+            zIndex: -1, translate: '-50% -50%'
+          }} />
+        )}
       </div>
     </div>
   );

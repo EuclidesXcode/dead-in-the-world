@@ -543,3 +543,23 @@ html, body {
 .anim-muzzle { animation: muzzle-flash 0.1s ease-out forwards; }
 .anim-neon-pulse { animation: pulse-neon 2s infinite ease-in-out; }
 
+@keyframes zombie-death {
+  0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; filter: grayscale(0); }
+  50% { transform: translateY(10px) rotate(15deg) scale(1.1, 0.9); opacity: 0.8; filter: grayscale(0.5) sepia(0.5); }
+  100% { transform: translateY(30px) rotate(45deg) scale(0.8, 0.5); opacity: 0; filter: grayscale(1) brightness(0.5); }
+}
+
+@keyframes blood-splatter {
+  0% { transform: scale(0); opacity: 0; }
+  10% { transform: scale(1.2); opacity: 0.8; }
+  100% { transform: scale(3) rotate(20deg); opacity: 0; }
+}
+
+@keyframes item-float-fancy {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(5deg); box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+}
+
+.anim-zombie-death { animation: zombie-death 0.8s forwards ease-in; }
+.anim-blood { animation: blood-splatter 0.6s forwards ease-out; }
+.anim-item-float { animation: item-float-fancy 2.5s infinite ease-in-out; }

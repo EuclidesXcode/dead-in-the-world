@@ -671,7 +671,7 @@ export default function GameCanvas() {
             border: `2px solid ${rarityColor(item.rarity)}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 14, borderRadius: 2,
-            animation: 'float 2s ease-in-out infinite',
+            animation: 'anim-item-float 2.5s infinite ease-in-out',
             boxShadow: `0 0 10px ${rarityColor(item.rarity)}66`,
             zIndex: 55,
           }}>
@@ -682,7 +682,6 @@ export default function GameCanvas() {
 
       {/* ── Zumbis ── */}
       {Array.from(zombies.values()).map((zombie) => {
-        if (!zombie.is_alive) return null;
         const sx = zombie.pos_x - viewportX;
         const sy = zombie.pos_y - viewportY;
         if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return null;
@@ -701,12 +700,12 @@ export default function GameCanvas() {
             )}
             <ZombieSprite
               zombieType={zombie.zombie_type as any}
-              health={zombie.current_health}
-              maxHealth={zombie.max_health}
-              direction={zombie.direction}
-              isMoving={true}
-              scale={1}
-              showHealthBar={true}
+              health={zombie.current_health} maxHealth={zombie.max_health}
+              direction={zombie.direction} 
+              isMoving={zombie.is_alive && distance(zombie.pos_x, zombie.pos_y, playerPosRef.current.x, playerPosRef.current.y) < 600}
+              isAttacking={zombie.is_alive && distance(zombie.pos_x, zombie.pos_y, playerPosRef.current.x, playerPosRef.current.y) < 50}
+              scale={zombie.zombie_type === 'tank' ? 1.5 : 1}
+              isAlive={zombie.is_alive}
             />
           </div>
         );
