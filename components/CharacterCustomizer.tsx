@@ -14,6 +14,7 @@ import { parseCustomCSS } from '@/lib/cssParser';
 export default function CharacterCustomizer() {
   const { showCharCustomizer, toggleCharCustomizer, player, updatePlayerStats } = useGameStore();
   const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'design' | 'css'>('profile');
   const [windowSize, setWindowSize] = useState({ w: 800, h: 600 });
 
@@ -70,6 +71,35 @@ export default function CharacterCustomizer() {
       console.error('Save error:', err);
     }
     setSaving(false);
+  };
+  
+  const { addNotification } = useGameStore();
+
+  const handleConfirmPayment = async () => {
+    if (!window.confirm("Você confirma que já realizou o pagamento via PIX?")) return;
+    
+    setConfirming(true);
+    try {
+      const response = await fetch('/api/payment/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: player.id,
+          username: player.username
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        addNotification('Confirmação enviada! Aguarde a liberação.', 'success');
+      } else {
+        addNotification('Erro ao enviar confirmação.', 'danger');
+      }
+    } catch (err) {
+      console.error('Payment confirmation error:', err);
+      addNotification('Falha na comunicação com o servidor.', 'danger');
+    }
+    setConfirming(false);
   };
 
   const defaultCSSTemplate = `/* Exemplos de seletores:
@@ -265,17 +295,15 @@ export default function CharacterCustomizer() {
                       * Após o pagamento, o acesso será liberado automaticamente em alguns minutos.
                     </div>
                     
-                    {/* Botão de dev para testes - em produção remover ou linkar ao webhook */}
+                    {/* Botão de confirmação real */}
                     <button 
                       className="btn-retro btn-retro-green" 
-                      style={{ fontSize: 8 }}
-                      onClick={async () => {
-                        if (window.confirm("Simular aprovação de pagamento PIX?")) {
-                          await supabase.from('players').update({ has_css_access: true }).eq('id', player.id);
-                          updatePlayerStats({ has_css_access: true });
-                        }
-                      }}
-                    >SIMULAR CONFIRMAÇÃO (DEV ONLY)</button>
+                      style={{ fontSize: 9, padding: '10px 20px' }}
+                      onClick={handleConfirmPayment}
+                      disabled={confirming}
+                    >
+                      {confirming ? 'ENVIANDO...' : 'JÁ REALIZEI O PAGAMENTO'}
+                    </button>
                   </div>
                 ) : (
                   <>

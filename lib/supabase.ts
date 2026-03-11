@@ -90,10 +90,10 @@ export interface Player {
   tiles_explored: number;
   items_collected: number;
   deaths: number;
+  has_css_access: boolean;
   is_online: boolean;
   last_seen: string;
   custom_css?: string;
-  has_css_access: boolean;
   created_at: string;
 }
 

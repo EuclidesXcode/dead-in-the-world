@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS public.players (
   is_online BOOLEAN DEFAULT false,
   last_seen TIMESTAMPTZ DEFAULT NOW(),
   
+  has_css_access BOOLEAN DEFAULT false,
+  
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
