@@ -2,22 +2,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useGameStore } from '@/lib/store';
 import { Zombie, Player } from '@/lib/supabase';
-import { latLngToOsmTile, playerWorldPixelFromLatLng, getVisibleOsmTiles, getPrefetchOsmTiles, osmTileUrl, GAME_TILE_PX, OSM_ZOOM } from '@/lib/osmTiles';
+import { playerWorldPixelFromLatLng, GAME_TILE_PX, worldPixelToLatLng } from '@/lib/osmTiles';
 import { distance, calculatePlayerDamage, calculateZombieDamage, checkLevelUp } from '@/lib/combat';
 import { calcMaxZombies, createSpawnZombie, nextSpawnDelay } from '@/lib/zombieSpawner';
 import { supabase } from '@/lib/supabase';
 import PlayerSprite from './PlayerSprite';
 import ZombieSprite from './ZombieSprite';
+import StreetMap from './StreetMap';
 
-// ── Cache de imagens pre-carregadas ──
-const tileImageCache = new Set<string>();
 
-function preloadTile(url: string) {
-  if (tileImageCache.has(url)) return;
-  tileImageCache.add(url);
-  const img = new Image();
-  img.src = url;
-}
 
 export default function GameCanvas() {
   const {
@@ -268,6 +261,15 @@ export default function GameCanvas() {
       const py = playerPosRef.current.y;
       setPlayerPixel(px, py);
 
+      // Atualiza lat/lng real quando move
+      if (moving && originTileRef.current) {
+        const { lat, lng } = worldPixelToLatLng(px, py, originTileRef.current.x, originTileRef.current.y);
+        // Só atualiza o estado zustand se a distância for significativa para não engasgar a thread
+        if (Math.abs(p.last_lat - lat) > 0.00005 || Math.abs(p.last_lng - lng) > 0.00005) {
+          updatePlayerStats({ last_lat: lat, last_lng: lng });
+        }
+      }
+
       // Viewport
       const { w, h } = useWindowSize();
       setViewport(px - w / 2, py - h / 2);
@@ -291,18 +293,8 @@ export default function GameCanvas() {
 
   const useWindowSize = () => windowSize;
 
-  const prefetchNearbyTiles = useCallback(() => {
-    const state = useGameStore.getState();
-    const tiles = getPrefetchOsmTiles(
-      state.viewportX, state.viewportY,
-      windowSize.w, windowSize.h,
-      originTileRef.current.x, originTileRef.current.y,
-      3
-    );
-    tiles.forEach(({ tileX, tileY }) => {
-      preloadTile(osmTileUrl(tileX, tileY));
-    });
-  }, [windowSize]);
+  const prefetchNearbyTiles = useCallback(() => { /* StreetMap cuida do buffer */ }, []);
+
 
   const checkItemPickup = useCallback(() => {
     const state = useGameStore.getState();
@@ -364,55 +356,33 @@ export default function GameCanvas() {
 
   const { w, h } = windowSize;
 
-  // ── Calcula tiles OSM visíveis ──
-  const visibleTiles = getVisibleOsmTiles(
-    viewportX, viewportY, w, h,
-    originTileRef.current.x, originTileRef.current.y
-  );
-
   return (
     <div
       ref={canvasRef}
-      style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#1a1a1a' }}
+      style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#12110a' }}
     >
-      {/* ── Mapa Real OSM ── */}
-      {visibleTiles.map(({ tileX, tileY, worldX, worldY }) => {
-        const screenX = worldX - viewportX;
-        const screenY = worldY - viewportY;
-        return (
-          <img
-            key={`${tileX}-${tileY}`}
-            src={osmTileUrl(tileX, tileY)}
-            alt=""
-            draggable={false}
-            style={{
-              position: 'absolute',
-              left: screenX,
-              top: screenY,
-              width: GAME_TILE_PX,
-              height: GAME_TILE_PX,
-              imageRendering: 'auto',
-              // Aplica tint escuro de apocalipse em cima do mapa
-              filter: 'brightness(0.65) saturate(0.7) sepia(0.2)',
-              pointerEvents: 'none',
-              userSelect: 'none',
-            }}
-          />
-        );
-      })}
+      {/* ── MAPA REAL: ruas pós-apocalípticas em SVG/CSS ── */}
+      <StreetMap
+        viewportX={viewportX}
+        viewportY={viewportY}
+        screenW={w}
+        screenH={h}
+        originTileX={originTileRef.current.x}
+        originTileY={originTileRef.current.y}
+        playerLat={player.last_lat || 0}
+        playerLng={player.last_lng || 0}
+      />
 
-      {/* ── Overlay escuro de apocalipse ── */}
+      {/* ── Vinheta ambiente pós-apocalipse ── */}
       <div style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(10, 5, 5, 0.25)',
-        pointerEvents: 'none',
-        mixBlendMode: 'multiply',
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+        background: 'radial-gradient(ellipse at center, transparent 55%, rgba(5,3,2,0.55) 100%)',
       }} />
 
       {/* ── Scanlines ── */}
-      <div className="scanlines" />
+      <div className="scanlines" style={{ zIndex: 11 }} />
 
-      {/* ── Items no mundo ── */}
+      {/* ── Items ── */}
       {useGameStore.getState().worldItems.map((item) => {
         const sx = item.pos_x - viewportX;
         const sy = item.pos_y - viewportY;
@@ -427,7 +397,7 @@ export default function GameCanvas() {
             fontSize: 14, borderRadius: 2,
             animation: 'float 2s ease-in-out infinite',
             boxShadow: `0 0 10px ${rarityColor(item.rarity)}66`,
-            zIndex: 50,
+            zIndex: 55,
           }}>
             {itemEmoji(item.item_id)}
           </div>

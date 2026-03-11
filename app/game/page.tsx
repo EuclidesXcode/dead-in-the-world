@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useGameStore } from '@/lib/store';
@@ -37,6 +37,7 @@ export default function GamePage() {
   const [status, setStatus] = useState<LoadStatus>('auth');
   const [loadMsg, setLoadMsg] = useState('Autenticando...');
   const [error, setError] = useState('');
+  const spawnedTilesRef = useRef<Set<string>>(new Set());
 
   // ── 1. Auth check ──
   useEffect(() => {
@@ -213,19 +214,24 @@ export default function GamePage() {
 
   // ── Spawna loot e zumbis ──
   const spawnWorldContent = async (tiles: Map<string, MapTile>, centerX: number, centerY: number) => {
-    const worldItems: any[] = [];
-    const zombiesData: any[] = [];
+    const newItems: any[] = [];
+    const newZombies: any[] = [];
 
     tiles.forEach((tile) => {
+      const tileKey = `${tile.tile_x},${tile.tile_y}`;
+      if (spawnedTilesRef.current.has(tileKey)) return; // Já spawnado nessa sessão!
+      
       const dist = Math.max(Math.abs(tile.tile_x - centerX), Math.abs(tile.tile_y - centerY));
       if (dist > 3) return;
+
+      spawnedTilesRef.current.add(tileKey);
 
       // Loot
       if (tile.has_loot && !tile.loot_collected) {
         const lootCount = Math.floor(Math.random() * 3) + 1;
         const loot = generateTileLoot(tile.tile_type as any, tile.tile_x, tile.tile_y, lootCount);
         loot.forEach(item => {
-          worldItems.push({
+          newItems.push({
             ...item,
             id: crypto.randomUUID(),
             tile_x: tile.tile_x,
@@ -240,7 +246,7 @@ export default function GamePage() {
       for (let i = 0; i < tile.zombie_density; i++) {
         const type = randomZombieType();
         const stats = ZOMBIE_STATS[type];
-        zombiesData.push({
+        newZombies.push({
           id: crypto.randomUUID(),
           tile_x: tile.tile_x,
           tile_y: tile.tile_y,
@@ -258,8 +264,16 @@ export default function GamePage() {
       }
     });
 
-    setWorldItems(worldItems);
-    setZombies(zombiesData as any);
+    if (newItems.length > 0 || newZombies.length > 0) {
+      const state = useGameStore.getState();
+      if (newItems.length > 0) {
+        state.setWorldItems([...state.worldItems, ...newItems]);
+      }
+      if (newZombies.length > 0) {
+        // Zumbis já são gerenciados pelo Map<string, Zombie> no store (setZombie/addZombie)
+        newZombies.forEach(z => state.addZombie(z));
+      }
+    }
   };
 
   // ── Inventário ──
@@ -345,8 +359,13 @@ export default function GamePage() {
         level: p.level,
         kills: p.kills,
         tiles_explored: p.tiles_explored,
+        last_lat: p.last_lat,
+        last_lng: p.last_lng,
         last_seen: new Date().toISOString(),
       }).eq('id', p.id);
+
+      // Expande o mapa mundial periodicamente de forma invisível
+      loadMap(p, { lat: p.last_lat, lng: p.last_lng });
     }, 5000);
     return () => clearInterval(interval);
   }, [player?.id, status]);
