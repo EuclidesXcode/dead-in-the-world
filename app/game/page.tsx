@@ -94,7 +94,19 @@ export default function GamePage() {
 
   // ── Geolocalização ──
   const getLocation = (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
+      // Prioridade total para coordenadas de convite
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const inviteLat = params.get('lat');
+        const inviteLng = params.get('lng');
+
+        if (inviteLat && inviteLng) {
+          resolve({ lat: parseFloat(inviteLat), lng: parseFloat(inviteLng) });
+          return;
+        }
+      }
+
       if (!navigator.geolocation) {
         // Fallback: São Paulo centro
         resolve({ lat: -23.5505, lng: -46.6333 });
@@ -112,13 +124,31 @@ export default function GamePage() {
   const loadOrCreatePlayer = async (user: any, coords: { lat: number; lng: number }): Promise<Player> => {
     const { tile_x, tile_y } = latLngToTile(coords.lat, coords.lng);
 
+    const params = new URLSearchParams(window.location.search);
+    const isInvite = params.has('invite');
+
     const { data: existing } = await supabase
       .from('players')
       .select('*')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (existing) {
+      if (isInvite) {
+        // Se é um convite, teleporta o amiguinho para a posição do host
+        const { data: updated } = await supabase
+          .from('players')
+          .update({
+            last_lat: coords.lat,
+            last_lng: coords.lng,
+            tile_x,
+            tile_y
+          })
+          .eq('id', (existing as any).id)
+          .select()
+          .single();
+        return updated as Player;
+      }
       return existing as Player;
     }
 

@@ -162,6 +162,12 @@ export const ITEM_DATABASE: Record<string, {
     stats: { craft_value: 1 },
     description: 'Pode virar bandagem', emoji: '🧵',
   },
+  gunpowder: {
+    item_id: 'gunpowder', item_name: 'Pólvora Escura', item_type: 'material',
+    weight: 0.1, rarity: 'uncommon',
+    stats: { craft_value: 1 },
+    description: 'Essencial pra fazer munição', emoji: '🧨',
+  },
 };
 
 // Tabelas de loot por tipo de tile
@@ -198,6 +204,7 @@ const LOOT_TABLES: Record<TileType, Array<{ item_id: string; weight: number; qua
     { item_id: 'rifle', weight: 20, quantity: [1, 1] },
     { item_id: 'ammo_rifle', weight: 30, quantity: [10, 30] },
     { item_id: 'ammo_9mm', weight: 20, quantity: [15, 40] },
+    { item_id: 'gunpowder', weight: 15, quantity: [2, 5] },
     { item_id: 'silencer', weight: 10, quantity: [1, 1] },
     { item_id: 'scope', weight: 10, quantity: [1, 1] },
     { item_id: 'medkit', weight: 10, quantity: [1, 2] },
@@ -224,6 +231,7 @@ const LOOT_TABLES: Record<TileType, Array<{ item_id: string; weight: number; qua
   abandoned: [
     { item_id: 'pistol', weight: 15, quantity: [1, 1] },
     { item_id: 'ammo_9mm', weight: 25, quantity: [8, 20] },
+    { item_id: 'gunpowder', weight: 15, quantity: [1, 3] },
     { item_id: 'pain_meds', weight: 20, quantity: [1, 4] },
     { item_id: 'canned_food', weight: 25, quantity: [1, 3] },
     { item_id: 'grip', weight: 15, quantity: [1, 1] },

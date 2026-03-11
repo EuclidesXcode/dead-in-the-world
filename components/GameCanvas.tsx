@@ -42,7 +42,7 @@ export default function GameCanvas() {
     onlinePlayers,
     viewportX, viewportY, setViewport,
     playerPixelX, playerPixelY, setPlayerPixel,
-    equippedWeapon, ammo, useAmmo,
+    equippedWeapon, equippedSecondaryWeapon, ammo, useAmmo,
     damageNumbers, addDamageNumber, clearOldDamageNumbers,
     addNotification,
     setEquippedWeapon,
@@ -192,86 +192,109 @@ export default function GameCanvas() {
   }, [scheduleSpawn]);
 
   // ── Auto-aim: encontra zumbi mais próximo no alcance ──
-  const findNearestZombie = useCallback((px: number, py: number, range: number): Zombie | null => {
+  const findMultipleNearestZombies = useCallback((px: number, py: number, range: number, limit: number): Zombie[] => {
     const state = useGameStore.getState();
-    let nearest: Zombie | null = null;
-    let minDist = range;
-    state.zombies.forEach((zombie) => {
-      if (!zombie.is_alive) return;
-      const d = distance(px, py, zombie.pos_x, zombie.pos_y);
-      if (d < minDist) { minDist = d; nearest = zombie as Zombie; }
-    });
-    return nearest;
+    const sorted = Array.from(state.zombies.values())
+      .filter(z => z.is_alive)
+      .map(z => ({ z, d: distance(px, py, z.pos_x, z.pos_y) }))
+      .filter(i => i.d <= range)
+      .sort((a, b) => a.d - b.d);
+    return sorted.slice(0, limit).map(i => i.z as Zombie);
   }, []);
 
-  // ── Auto-attack: dispara no alvo mais próximo ──
+  // ── Auto-attack: dispara em até 2 alvos se tiver duas armas ──
   const autoAttack = useCallback((p: Player, px: number, py: number) => {
     const now = Date.now();
-    const weapon = useGameStore.getState().equippedWeapon;
-    const fireRate = weapon?.stats?.fire_rate || 0.8;
+    const state = useGameStore.getState();
+    const w1 = state.equippedWeapon;
+    const w2 = state.equippedSecondaryWeapon;
+    
+    // Usa a cadencia da arma principal (ou secundaria se so tiver ela)
+    const fireRate = w1?.stats?.fire_rate || w2?.stats?.fire_rate || 0.8;
     const cooldown = 1000 / fireRate;
     if (now - lastAttackRef.current < cooldown) return;
 
-    const range = weapon?.stats?.range ? weapon.stats.range * 8 : 300; // range em pixels
-    const target = findNearestZombie(px, py, range);
-    if (!target) { setCurrentTarget(null); return; }
+    const range = Math.max(
+      w1?.stats?.range ? w1.stats.range * 8 : 300,
+      w2?.stats?.range ? w2.stats.range * 8 : 300
+    );
 
-    setCurrentTarget(target.id);
+    const targets = findMultipleNearestZombies(px, py, range, (w1 && w2) ? 2 : 1);
+    if (targets.length === 0) { setCurrentTarget(null); return; }
+
     lastAttackRef.current = now;
     setIsAttacking(true);
     setTimeout(() => setIsAttacking(false), 100);
 
-    // Aponta para o alvo
-    const dx = target.pos_x - px;
-    const dy = target.pos_y - py;
-    setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
-
-    // Consome munição se necessário
-    if (weapon?.stats?.ammo_type) {
-      const ok = useGameStore.getState().useAmmo(weapon.stats.ammo_type, 1);
-      if (!ok) { addNotification('Sem munição!', 'warning'); return; }
-    }
-
-    // Dispara som e reduz cooldown
-    audioSystem?.playShootSound();
-
-    const { damage, isCrit, missed } = calculatePlayerDamage(p, weapon);
-    const state = useGameStore.getState();
-
-    addDamageNumber({
-      x: target.pos_x - state.viewportX,
-      y: target.pos_y - state.viewportY - 20,
-      damage: missed ? 0 : damage,
-      isCrit,
-    });
-
-    if (!missed) {
-      audioSystem?.playZombieHurt();
-      const newHp = Math.max(0, target.current_health - damage);
-      if (newHp <= 0) {
-        setZombie({ ...target, is_alive: false, current_health: 0 });
-        setCurrentTarget(null);
-        setTimeout(() => removeZombie(target.id), 800);
-
-        const newXp = p.xp + target.xp_reward;
-        const result = checkLevelUp({ ...p, xp: newXp });
-        updatePlayerStats({ kills: p.kills + 1, xp: result.newPlayer.xp, level: result.newPlayer.level });
-        if (result.leveled) addNotification(`🎉 LEVEL UP! Nível ${result.newPlayer.level}!`, 'success');
-
-        supabase.from('kill_log').insert({
-          player_id: p.id,
-          zombie_type: target.zombie_type,
-          zombie_id: target.id,
-          tile_x: target.tile_x,
-          tile_y: target.tile_y,
-          xp_gained: target.xp_reward,
-          weapon_used: weapon?.item_id || 'fists',
-        });
-      } else {
-        setZombie({ ...target, current_health: newHp });
+    const processShoot = (target: Zombie, weapon: any, isSecondary: boolean) => {
+      // Checar munição individualmente por arma se necessário
+      if (weapon?.stats?.ammo_type) {
+        const ok = useGameStore.getState().useAmmo(weapon.stats.ammo_type, 1);
+        if (!ok) {
+           if (!isSecondary) addNotification('Sem munição na primária!', 'warning');
+           return false;
+        }
       }
+
+      // Direciona o olhar apenas para o alvo principal
+      if (!isSecondary) {
+        setCurrentTarget(target.id);
+        const dx = target.pos_x - px;
+        const dy = target.pos_y - py;
+        setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
+      }
+
+      audioSystem?.playShootSound();
+      const { damage, isCrit, missed } = calculatePlayerDamage(p, weapon);
+      
+      addDamageNumber({
+        x: target.pos_x - state.viewportX + (isSecondary ? 15 : -15),
+        y: target.pos_y - state.viewportY - 20,
+        damage: missed ? 0 : damage,
+        isCrit,
+      });
+
+      if (!missed) {
+        audioSystem?.playZombieHurt();
+        // Re-obter o zombie do estado atualizado (caso a primeira arma já o tenha alterado)
+        const freshTarget = useGameStore.getState().zombies.get(target.id);
+        if (!freshTarget || !freshTarget.is_alive) return true;
+
+        const newHp = Math.max(0, freshTarget.current_health - damage);
+        if (newHp <= 0) {
+          setZombie({ ...freshTarget, is_alive: false, current_health: 0 });
+          if (!isSecondary) setCurrentTarget(null);
+          setTimeout(() => removeZombie(target.id), 800);
+          
+          const newXp = p.xp + freshTarget.xp_reward;
+          const result = checkLevelUp({ ...p, xp: newXp });
+          updatePlayerStats({ kills: p.kills + 1, xp: result.newPlayer.xp, level: result.newPlayer.level });
+          if (result.leveled) addNotification(`🎉 LEVEL UP! Nível ${result.newPlayer.level}!`, 'success');
+          
+          supabase.from('kill_log').insert({
+            player_id: p.id,
+            zombie_type: freshTarget.zombie_type,
+            zombie_id: freshTarget.id,
+            tile_x: freshTarget.tile_x,
+            tile_y: freshTarget.tile_y,
+            xp_gained: freshTarget.xp_reward,
+            weapon_used: weapon?.item_id || 'fists',
+          });
+        } else {
+          setZombie({ ...freshTarget, current_health: newHp });
+        }
+      }
+      return true;
+    };
+
+    // Fogo!
+    if (w1) processShoot(targets[0], w1, false);
+    if (w2) {
+      // Se tiver 2 alvos, segunda arma atira no segundo. Senão, ambas no primeiro.
+      const target2 = targets.length > 1 ? targets[1] : targets[0];
+      processShoot(target2, w2, true);
     }
-  }, []);
+  }, [findMultipleNearestZombies, setZombie, removeZombie, updatePlayerStats, addDamageNumber, addNotification]);
 
   // ── Game Loop Principal ──
   useEffect(() => {

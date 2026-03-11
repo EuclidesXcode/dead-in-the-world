@@ -62,6 +62,8 @@ interface GameState {
   updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
   equippedWeapon: InventoryItem | null;
   setEquippedWeapon: (weapon: InventoryItem | null) => void;
+  equippedSecondaryWeapon: InventoryItem | null;
+  setEquippedSecondaryWeapon: (weapon: InventoryItem | null) => void;
 
   // Ammo
   ammo: Record<string, number>;
@@ -192,6 +194,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     })),
   equippedWeapon: null,
   setEquippedWeapon: (equippedWeapon) => set({ equippedWeapon }),
+  equippedSecondaryWeapon: null,
+  setEquippedSecondaryWeapon: (equippedSecondaryWeapon) => set({ equippedSecondaryWeapon }),
 
   // Ammo
   ammo: {},
