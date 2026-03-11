@@ -58,6 +58,7 @@ export default function GameCanvas() {
     const { originTileX, originTileY, pixelX, pixelY } =
       playerWorldPixelFromLatLng(player.last_lat, player.last_lng);
     originTileRef.current = { x: originTileX, y: originTileY };
+    useGameStore.getState().setOriginTile(originTileX, originTileY);
     playerPosRef.current = { x: pixelX, y: pixelY };
     setPlayerPixel(pixelX, pixelY);
   }, [player?.id]);

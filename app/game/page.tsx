@@ -16,6 +16,7 @@ import Chat from '@/components/Chat';
 import Notifications from '@/components/Notifications';
 import TouchControls from '@/components/TouchControls';
 import { MapTile, Player } from '@/lib/supabase';
+import { GAME_TILE_PX } from '@/lib/osmTiles';
 
 type LoadStatus = 'auth' | 'location' | 'player' | 'map' | 'ready' | 'error';
 
@@ -216,6 +217,12 @@ export default function GamePage() {
   const spawnWorldContent = async (tiles: Map<string, MapTile>, centerX: number, centerY: number) => {
     const newItems: any[] = [];
     const newZombies: any[] = [];
+    
+    // Obter o originTile do store (onde o (0,0) do canvas fica amarrado para a sessão)
+    // Se ainda não estiver inicializado (primeiro run antes do GameCanvas mount), usamos fallback:
+    const storeOrigin = useGameStore.getState().originTile;
+    const originTileX = storeOrigin ? storeOrigin.x : centerX;
+    const originTileY = storeOrigin ? storeOrigin.y : centerY;
 
     tiles.forEach((tile) => {
       const tileKey = `${tile.tile_x},${tile.tile_y}`;
@@ -236,8 +243,8 @@ export default function GamePage() {
             id: crypto.randomUUID(),
             tile_x: tile.tile_x,
             tile_y: tile.tile_y,
-            pos_x: tile.tile_x * 64 + item.pos_x,
-            pos_y: tile.tile_y * 64 + item.pos_y,
+            pos_x: (tile.tile_x - originTileX) * GAME_TILE_PX + item.pos_x,
+            pos_y: (tile.tile_y - originTileY) * GAME_TILE_PX + item.pos_y,
           });
         });
       }
@@ -250,8 +257,8 @@ export default function GamePage() {
           id: crypto.randomUUID(),
           tile_x: tile.tile_x,
           tile_y: tile.tile_y,
-          pos_x: tile.tile_x * 64 + Math.random() * 48 + 8,
-          pos_y: tile.tile_y * 64 + Math.random() * 48 + 8,
+          pos_x: (tile.tile_x - originTileX) * GAME_TILE_PX + Math.random() * (GAME_TILE_PX * 0.8) + (GAME_TILE_PX * 0.1),
+          pos_y: (tile.tile_y - originTileY) * GAME_TILE_PX + Math.random() * (GAME_TILE_PX * 0.8) + (GAME_TILE_PX * 0.1),
           zombie_type: type,
           max_health: stats.max_health,
           current_health: stats.max_health,

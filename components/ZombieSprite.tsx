@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ZombieType } from '@/lib/supabase';
 
 // ──────────────────────────────────────────────────────
@@ -28,10 +28,25 @@ export default function ZombieSprite({
   scale = 1,
   showHealthBar = true,
 }: ZombieSpriteProps) {
+  const [hurtState, setHurtState] = useState(false);
+  const prevHealthRef = useRef(health);
+
+  useEffect(() => {
+    if (health < prevHealthRef.current) {
+      setHurtState(true);
+      const t = setTimeout(() => setHurtState(false), 300);
+      prevHealthRef.current = health;
+      return () => clearTimeout(t);
+    }
+    prevHealthRef.current = health;
+  }, [health]);
+
   const facingLeft = direction > 90 && direction < 270;
   const healthPercent = Math.max(0, Math.min(100, (health / maxHealth) * 100));
 
-  const animClass = isMoving ? 'animate-zombie-walk' : '';
+  const baseAnim = isMoving ? 'anim-walk-bounce' : 'anim-idle-breath';
+  const hurtAnim = hurtState ? 'anim-hurt' : '';
+  const animClass = `${baseAnim} ${hurtAnim}`;
 
   return (
     <div style={{
@@ -153,10 +168,10 @@ function WalkerZombie({ scale, isAttacking }: { scale: number; isAttacking: bool
       </div>
 
       {/* ── Pernas ── */}
-      <div style={{ position: 'absolute', top: 36 * s, left: 3 * s, width: 9 * s, height: 13 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
+      <div className={isAttacking ? '' : 'anim-leg-left'} style={{ position: 'absolute', top: 36 * s, left: 3 * s, width: 9 * s, height: 13 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#1a0d00', border: `${s}px solid #333` }} />
       </div>
-      <div style={{ position: 'absolute', top: 38 * s, right: 3 * s, width: 9 * s, height: 11 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
+      <div className={isAttacking ? '' : 'anim-leg-right'} style={{ position: 'absolute', top: 38 * s, right: 3 * s, width: 9 * s, height: 11 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#1a0d00', border: `${s}px solid #333` }} />
       </div>
     </div>
@@ -204,10 +219,10 @@ function RunnerZombie({ scale, isAttacking }: { scale: number; isAttacking: bool
         transform: 'rotate(-20deg)', transformOrigin: 'top center',
       }} />
       {/* Pernas longas de corredor */}
-      <div style={{ position: 'absolute', top: 32 * s, left: 2 * s, width: 8 * s, height: 18 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
+      <div className="anim-leg-left" style={{ position: 'absolute', top: 32 * s, left: 2 * s, width: 8 * s, height: 18 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
       </div>
-      <div style={{ position: 'absolute', top: 34 * s, right: 2 * s, width: 8 * s, height: 16 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
+      <div className="anim-leg-right" style={{ position: 'absolute', top: 34 * s, right: 2 * s, width: 8 * s, height: 16 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
       </div>
     </div>
@@ -269,10 +284,10 @@ function TankZombie({ scale, isAttacking }: { scale: number; isAttacking: boolea
       }} />
 
       {/* Pernas grossas */}
-      <div style={{ position: 'absolute', top: 48 * s, left: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
+      <div className="anim-leg-left" style={{ position: 'absolute', top: 48 * s, left: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
         <div style={{ position: 'absolute', bottom: 0, inset: 0, height: 4 * s, background: '#0d0500', top: 'auto' }} />
       </div>
-      <div style={{ position: 'absolute', top: 48 * s, right: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
+      <div className="anim-leg-right" style={{ position: 'absolute', top: 48 * s, right: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
         <div style={{ position: 'absolute', bottom: 0, inset: 0, height: 4 * s, background: '#0d0500', top: 'auto' }} />
       </div>
     </div>

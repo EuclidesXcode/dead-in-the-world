@@ -39,6 +39,9 @@ interface GameState {
   playerPixelX: number;
   playerPixelY: number;
   setPlayerPixel: (x: number, y: number) => void;
+  // Origin Tile for global relative pixel coords
+  originTile: { x: number, y: number } | null;
+  setOriginTile: (x: number, y: number) => void;
 
   // Zombies
   zombies: Map<string, Zombie>;
@@ -147,6 +150,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   playerPixelX: 0,
   playerPixelY: 0,
   setPlayerPixel: (playerPixelX, playerPixelY) => set({ playerPixelX, playerPixelY }),
+  originTile: null,
+  setOriginTile: (x, y) => set({ originTile: { x, y } }),
 
   // Zombies
   zombies: new Map(),
