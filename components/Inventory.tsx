@@ -229,7 +229,7 @@ export default function Inventory() {
               onClick={() => setActiveTab(tab.key)}
               style={{
                 padding: window.innerWidth < 768 ? '12px 16px' : '8px 12px',
-                fontSize: window.innerWidth < 768 ? 10 : 8,
+                fontSize: window.innerWidth < 768 ? 12 : 10,
                 fontFamily: "'Press Start 2P', monospace",
                 background: activeTab === tab.key ? 'rgba(139,0,0,0.3)' : 'transparent',
                 color: activeTab === tab.key ? '#dc2626' : '#555',
@@ -327,7 +327,7 @@ export default function Inventory() {
                         {item.quantity > 1 && (
                           <div style={{
                             position: 'absolute', bottom: 2, right: 4,
-                            fontSize: 9, color: '#fff', fontFamily: "'Share Tech Mono', monospace",
+                            fontSize: 11, color: '#fff', fontFamily: "'Share Tech Mono', monospace",
                             textShadow: '1px 1px 0 #000',
                           }}>
                             x{item.quantity}
@@ -337,7 +337,7 @@ export default function Inventory() {
                           <div style={{ position: 'absolute', top: 2, left: 2, width: 8, height: 8, background: '#39ff14', boxShadow: '0 0 4px #39ff14' }} />
                         )}
                         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: rarityConf.color }} />
-                        <div style={{ fontSize: 6, color: '#888', fontFamily: "'Share Tech Mono', monospace", textAlign: 'center', lineHeight: 1.2, maxWidth: '100%', overflow: 'hidden', padding: '0 2px' }}>
+                        <div style={{ fontSize: 9, color: '#888', fontFamily: "'Share Tech Mono', monospace", textAlign: 'center', lineHeight: 1.2, maxWidth: '100%', overflow: 'hidden', padding: '0 2px' }}>
                           {item.item_name.slice(0, 10)}
                         </div>
                       </button>
@@ -361,15 +361,15 @@ export default function Inventory() {
                 >
                   <div style={{ textAlign: 'center', marginBottom: 8 }}>
                     <div style={{ fontSize: 36, marginBottom: 8 }}>{getItemEmoji(selected.item_id)}</div>
-                    <div className="pixel-font" style={{ fontSize: 8, color: '#fff', marginBottom: 4 }}>{selected.item_name}</div>
-                    <div style={{ fontSize: 9, color: RARITY_CONFIG[selected.rarity].color, fontFamily: "'Share Tech Mono', monospace" }}>
+                    <div className="pixel-font" style={{ fontSize: 11, color: '#fff', marginBottom: 4 }}>{selected.item_name}</div>
+                    <div style={{ fontSize: 11, color: RARITY_CONFIG[selected.rarity].color, fontFamily: "'Share Tech Mono', monospace" }}>
                       {RARITY_CONFIG[selected.rarity].label.toUpperCase()}
                     </div>
                   </div>
 
                   <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #333, transparent)' }} />
 
-                  <div style={{ fontSize: 9, color: '#888', fontFamily: "'Share Tech Mono', monospace", lineHeight: 1.8 }}>
+                  <div style={{ fontSize: 11, color: '#888', fontFamily: "'Share Tech Mono', monospace", lineHeight: 1.8 }}>
                     {selected.item_type === 'weapon' && (
                       <>
                         <StatLine label="DANO" value={selected.stats?.damage} />
@@ -419,7 +419,7 @@ export default function Inventory() {
                               addNotification(`${selected.item_name} na mão direita!`, 'success');
                             }
                           }}
-                          style={{ fontSize: 8, padding: '8px 4px', width: '100%' }}
+                          style={{ fontSize: 10, padding: '8px 4px', width: '100%' }}
                         >
                           {equippedWeapon?.id === selected.id ? 'DESEQUIPAR DIREITA' : 'MÃO DIREITA'}
                         </button>
@@ -437,7 +437,7 @@ export default function Inventory() {
                             }
                           }}
                           style={{ 
-                            fontSize: 8, padding: '8px 4px', width: '100%', 
+                            fontSize: 10, padding: '8px 4px', width: '100%', 
                             background: '#1e3a8a', border: '2px solid #3b82f6', color: '#fff' 
                           }}
                         >
@@ -449,7 +449,7 @@ export default function Inventory() {
                       <button
                         className="btn-retro btn-retro-green"
                         onClick={() => useItem(selected)}
-                        style={{ fontSize: 8, padding: '8px 4px', width: '100%' }}
+                        style={{ fontSize: 10, padding: '8px 4px', width: '100%' }}
                       >
                         USAR
                       </button>
@@ -457,7 +457,7 @@ export default function Inventory() {
                     <button
                       className="btn-retro btn-retro-red"
                       onClick={() => dropItem(selected)}
-                      style={{ fontSize: 8, padding: '8px 4px', width: '100%' }}
+                      style={{ fontSize: 10, padding: '8px 4px', width: '100%' }}
                     >
                       DESCARTAR
                     </button>
@@ -476,11 +476,11 @@ export default function Inventory() {
             { label: 'PREC', value: player.precision_stat, color: '#f59e0b' },
           ].map(({ label, value, color }) => (
             <div key={label} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              <span style={{ fontSize: 7, color: '#555', fontFamily: "'Share Tech Mono', monospace" }}>{label}</span>
-              <span style={{ fontSize: 10, color, fontFamily: "'Press Start 2P', monospace" }}>{value}</span>
+              <span style={{ fontSize: 9, color: '#555', fontFamily: "'Share Tech Mono', monospace" }}>{label}</span>
+              <span style={{ fontSize: 12, color, fontFamily: "'Press Start 2P', monospace" }}>{value}</span>
             </div>
           ))}
-          <div style={{ marginLeft: 'auto', fontSize: 7, color: '#555', fontFamily: "'Share Tech Mono', monospace" }}>
+          <div style={{ marginLeft: 'auto', fontSize: 9, color: '#555', fontFamily: "'Share Tech Mono', monospace" }}>
             {inventory.length} ITENS · {totalWeight.toFixed(1)}kg
           </div>
         </div>
