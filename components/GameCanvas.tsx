@@ -436,31 +436,16 @@ export default function GameCanvas() {
         if (keys.has('KeyS') || keys.has('ArrowDown')) dy += 1;
         if (keys.has('KeyA') || keys.has('ArrowLeft')) dx -= 1;
         if (keys.has('KeyD') || keys.has('ArrowRight')) dx += 1;
-
-        const { w, h } = useWindowSize();
-
-        // Se não usar WASD, segue o ponteiro do mouse
-        if (dx === 0 && dy === 0) {
-          const mdx = mousePosRef.current.x - w / 2;
-          const mdy = mousePosRef.current.y - h / 2;
-          const dist = Math.sqrt(mdx * mdx + mdy * mdy);
-          
-          if (isMouseMovingRef.current) {
-            if (dist < 20) isMouseMovingRef.current = false;
-          } else {
-            // Só anda de novo quando distanciar o mouse (puxar o mouse)
-            if (dist > 50) isMouseMovingRef.current = true;
-          }
-
-          if (isMouseMovingRef.current) {
-            dx = mdx;
-            dy = mdy;
-          }
-        }
       }
 
       const moving = dx !== 0 || dy !== 0;
       setIsMoving(moving);
+
+      // Always face the mouse
+      const { w, h } = windowSize;
+      const mdx = mousePosRef.current.x - w / 2;
+      const mdy = mousePosRef.current.y - h / 2;
+      setPlayerDir((Math.atan2(mdy, mdx) * 180 / Math.PI + 360) % 360);
 
       const keys = keysRef.current;
       let isSprinting = moving && !showInventory && (keys.has('ShiftLeft') || keys.has('ShiftRight')) && p.current_stamina > 5;
