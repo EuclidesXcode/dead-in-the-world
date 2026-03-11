@@ -355,7 +355,7 @@ export default function StreetMap({
           left: -buffer, top: -buffer, 
           width: svgViewW, height: svgViewH, 
           overflow: 'visible',
-          filter: 'sepia(0.2) saturate(1.3) contrast(1.05) drop-shadow(0 0 20px rgba(255,100,0,0.05))'
+          filter: 'sepia(0.4) saturate(1.6) contrast(1.1) drop-shadow(0 0 30px rgba(255,100,0,0.1))'
         }}
         viewBox={`${svgViewX} ${svgViewY} ${svgViewW} ${svgViewH}`}
       >

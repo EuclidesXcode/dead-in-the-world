@@ -379,9 +379,22 @@ export default function GamePage() {
       })
       .subscribe();
 
+    // Eventos Administrativos (Apenas para Eucode/@eucode)
+    const adminChannel = supabase
+      .channel('admin_notifications')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_events', filter: `event_type=eq.payment_request` }, (payload) => {
+        if (playerData.username === 'Eucode' || playerData.id === '6c83942f-54fb-4f40-aabb-e44ca2f84f1a') { // ID do PIX do user
+           const data = payload.new as any;
+           addNotification(`💰 PAGAMENTO: ${data.payload.username} solicitou liberação!`, 'warning');
+           console.log("Admin Request:", data.payload.releaseUrl);
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(playersChannel);
       supabase.removeChannel(tilesChannel);
+      supabase.removeChannel(adminChannel);
     };
   };
 
@@ -432,7 +445,7 @@ export default function GamePage() {
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+    <div className="game-container" style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
       {/* Efeitos de fundo */}
       <div className="scanlines" />
       <div className="vignette" />

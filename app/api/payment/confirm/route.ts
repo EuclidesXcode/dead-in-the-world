@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function POST(req: Request) {
   try {
@@ -8,26 +12,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Player ID é obrigatório' }, { status: 400 });
     }
 
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const releaseUrl = `${siteUrl}/api/admin/liberate?id=${playerId}`;
     
-    // Log para o console do servidor
+    // 1. Log para o console
     console.log('--- NOVA SOLICITAÇÃO DE PAGAMENTO ---');
     console.log(`Jogador: ${username}`);
-    console.log(`ID: ${playerId}`);
-    console.log(`Link para liberar: ${releaseUrl}`);
-    console.log('------------------------------------');
+    console.log(`Link: ${releaseUrl}`);
 
-    // Nota: Como não temos um serviço de email configurado (Resend/Sendgrid),
-    // o link aparece nos logs. O usuário pediu que chegasse no email.
-    // Sugiro que ele configure o Resend para produção.
+    // 2. Insere na tabela de eventos para notificação em tempo real no jogo
+    await supabase.from('game_events').insert({
+      event_type: 'payment_request',
+      player_id: playerId,
+      payload: { 
+        username, 
+        releaseUrl,
+        message: `O jogador ${username} solicitou liberação de CSS Expert.`
+      }
+    });
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Notificação enviada! O administrador revisará seu pagamento.' 
+      message: 'Notificação enviada!' 
     });
   } catch (err) {
     console.error('Confirm error:', err);
-    return NextResponse.json({ error: 'Falha ao processar confirmação' }, { status: 500 });
+    return NextResponse.json({ error: 'Falha' }, { status: 500 });
   }
 }

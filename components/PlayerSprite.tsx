@@ -177,7 +177,7 @@ function Head({ skinColor, hairColor, scale, isLocal, customStyles }: any) {
         ...customStyles.headBase
       }}>
         {/* Rim Light (Sun) */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '40%', height: '30%', background: 'rgba(255,180,50,0.3)', filter: 'blur(2px)' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '40%', height: '30%', background: 'rgba(255,200,80,0.5)', filter: 'blur(1px)' }} />
       </div>
       {/* Cabelo com mechas */}
       <div style={{
@@ -280,7 +280,7 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking,
           pointerEvents: 'none'
         }} />
         {/* Rim Light (Sun) */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '30%', height: '50%', background: 'rgba(255,180,50,0.25)', filter: 'blur(3px)' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '30%', height: '50%', background: 'rgba(255,200,80,0.4)', filter: 'blur(1.5px)' }} />
         
         {/* Detalhe bolso superior */}
         <div style={{ position: 'absolute', top: 3 * s, left: 3 * s, width: 8 * s, height: 7 * s, background: 'rgba(0,0,0,0.15)', border: `${s}px solid rgba(255,255,255,0.05)`, borderRadius: 1 }} />
