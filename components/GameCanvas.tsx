@@ -10,6 +10,7 @@ import { audioSystem } from '@/lib/audio';
 import PlayerSprite from './PlayerSprite';
 import ZombieSprite from './ZombieSprite';
 import StreetMap from './StreetMap';
+import { parseCustomCSS } from '@/lib/cssParser';
 
 // ── Funcao global de checagem física SVG (não depende de viewport) ──
 const isPointOnWalkableRoad = (worldX: number, worldY: number) => {
@@ -38,7 +39,7 @@ export default function GameCanvas() {
     tiles, setTile,
     zombies, setZombie, removeZombie,
     worldItems, removeWorldItem,
-    addInventoryItem, inventory,
+    addInventoryItem, inventory, setInventory,
     onlinePlayers,
     viewportX, viewportY, setViewport,
     playerPixelX, playerPixelY, setPlayerPixel,
@@ -151,6 +152,31 @@ export default function GameCanvas() {
       window.removeEventListener('touch-attack', onTouchAttack);
     };
   }, []);
+
+  // ── Lógica de Morte ──
+  useEffect(() => {
+    if (player && player.current_health <= 0) {
+      const handleDeath = async () => {
+        addNotification('💀 VOCÊ MORREU!', 'danger');
+        addNotification('Seu inventário foi perdido.', 'warning');
+
+        // Limpa inventário no banco
+        await supabase.from('inventory').delete().eq('player_id', player.id);
+        
+        // Atualiza estado local
+        setInventory([]);
+        updatePlayerStats({
+          current_health: player.max_health,
+          current_stamina: player.max_stamina,
+          deaths: (player.deaths || 0) + 1
+        });
+
+        // Teleporta de volta (opcional, aqui apenas cura)
+        addNotification('Renascendo...', 'info');
+      };
+      handleDeath();
+    }
+  }, [player?.current_health === 0]);
 
   // ── Sistema de Spawn ──
   const scheduleSpawn = useCallback(() => {
@@ -306,33 +332,38 @@ export default function GameCanvas() {
       const p = useGameStore.getState().player;
       if (!p) { animFrameRef.current = requestAnimationFrame(gameLoop); return; }
 
+      const showInventory = useGameStore.getState().showInventory;
+      
       // Movimentação (Teclado ou Mouse) - Ajustada para o novo GAME_TILE_PX massivo
       const speed = 220 * (1 + p.agility * 0.04);
       let dx = 0, dy = 0;
-      const keys = keysRef.current;
-      if (keys.has('KeyW') || keys.has('ArrowUp')) dy -= 1;
-      if (keys.has('KeyS') || keys.has('ArrowDown')) dy += 1;
-      if (keys.has('KeyA') || keys.has('ArrowLeft')) dx -= 1;
-      if (keys.has('KeyD') || keys.has('ArrowRight')) dx += 1;
 
-      const { w, h } = useWindowSize();
+      if (!showInventory) {
+        const keys = keysRef.current;
+        if (keys.has('KeyW') || keys.has('ArrowUp')) dy -= 1;
+        if (keys.has('KeyS') || keys.has('ArrowDown')) dy += 1;
+        if (keys.has('KeyA') || keys.has('ArrowLeft')) dx -= 1;
+        if (keys.has('KeyD') || keys.has('ArrowRight')) dx += 1;
 
-      // Se não usar WASD, segue o ponteiro do mouse
-      if (dx === 0 && dy === 0) {
-        const mdx = mousePosRef.current.x - w / 2;
-        const mdy = mousePosRef.current.y - h / 2;
-        const dist = Math.sqrt(mdx * mdx + mdy * mdy);
-        
-        if (isMouseMovingRef.current) {
-          if (dist < 20) isMouseMovingRef.current = false;
-        } else {
-          // Só anda de novo quando distanciar o mouse (puxar o mouse)
-          if (dist > 50) isMouseMovingRef.current = true;
-        }
+        const { w, h } = useWindowSize();
 
-        if (isMouseMovingRef.current) {
-          dx = mdx;
-          dy = mdy;
+        // Se não usar WASD, segue o ponteiro do mouse
+        if (dx === 0 && dy === 0) {
+          const mdx = mousePosRef.current.x - w / 2;
+          const mdy = mousePosRef.current.y - h / 2;
+          const dist = Math.sqrt(mdx * mdx + mdy * mdy);
+          
+          if (isMouseMovingRef.current) {
+            if (dist < 20) isMouseMovingRef.current = false;
+          } else {
+            // Só anda de novo quando distanciar o mouse (puxar o mouse)
+            if (dist > 50) isMouseMovingRef.current = true;
+          }
+
+          if (isMouseMovingRef.current) {
+            dx = mdx;
+            dy = mdy;
+          }
         }
       }
 
@@ -419,7 +450,7 @@ export default function GameCanvas() {
     state.worldItems.forEach((item) => {
       if (distance(px, py, item.pos_x, item.pos_y) < 40) {
         removeWorldItem(item.id);
-        addInventoryItem({
+        const invItem = {
           id: crypto.randomUUID(),
           player_id: state.player?.id || '',
           item_type: item.item_type,
@@ -432,10 +463,14 @@ export default function GameCanvas() {
           equipped: false,
           upgrades: [],
           durability: 100,
-        });
+        };
+        addInventoryItem(invItem);
+        // Persistência no Supabase
+        supabase.from('inventory').insert(invItem).then();
+
         addNotification(`Coletou: ${item.item_name}`, 'info');
         if (item.item_type === 'weapon' && !state.equippedWeapon) {
-          setEquippedWeapon({ ...item, id: crypto.randomUUID(), player_id: state.player?.id || '', equipped: true, upgrades: [], durability: 100 });
+          setEquippedWeapon({ ...invItem, equipped: true });
         }
       }
     });
@@ -580,6 +615,10 @@ export default function GameCanvas() {
         const sx = opX - viewportX;
         const sy = opY - viewportY;
         if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return null;
+        
+        // Parse styles for other player
+        const opCustomStyles = op.custom_css ? parseCustomCSS(op.custom_css) : {};
+
         return (
           <div key={op.id} style={{ position: 'absolute', left: sx - 16, top: sy - 44, zIndex: 90 }}>
             <PlayerSprite
@@ -587,6 +626,7 @@ export default function GameCanvas() {
               shirtColor={op.shirt_color} pantsColor={op.pants_color}
               username={op.username} showHealthBar health={op.current_health}
               maxHealth={op.max_health} scale={1} isLocal={false}
+              customStyles={opCustomStyles}
             />
           </div>
         );
@@ -605,6 +645,7 @@ export default function GameCanvas() {
           direction={playerDir} isMoving={isMoving} isAttacking={isAttacking}
           health={player.current_health} maxHealth={player.max_health}
           showHealthBar={false} scale={1} isLocal username={player.username}
+          customStyles={parseCustomCSS(player.custom_css || '')}
         />
       </div>
 

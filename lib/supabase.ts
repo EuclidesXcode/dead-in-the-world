@@ -92,6 +92,7 @@ export interface Player {
   deaths: number;
   is_online: boolean;
   last_seen: string;
+  custom_css?: string;
   created_at: string;
 }
 

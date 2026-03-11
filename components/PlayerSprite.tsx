@@ -20,6 +20,7 @@ interface PlayerSpriteProps {
   scale?: number;
   isLocal?: boolean;   // jogador local tem borda diferente
   username?: string;
+  customStyles?: Record<string, React.CSSProperties>;
 }
 
 export default function PlayerSprite({
@@ -36,6 +37,7 @@ export default function PlayerSprite({
   scale = 1,
   isLocal = false,
   username,
+  customStyles = {},
 }: PlayerSpriteProps) {
   const [hurtState, setHurtState] = useState(false);
   const prevHealthRef = useRef(health);
@@ -71,6 +73,7 @@ export default function PlayerSprite({
         imageRendering: 'pixelated',
         transform: `scaleX(${scaleX})`,
         transition: 'transform 0.1s',
+        ...customStyles.container
       }}
     >
       {/* ── Username (não espelha junto) ── */}
@@ -87,6 +90,7 @@ export default function PlayerSprite({
             color: isLocal ? '#39ff14' : '#fff',
             textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000',
             pointerEvents: 'none',
+            ...customStyles.username
           }}
         >
           {username}
@@ -105,6 +109,7 @@ export default function PlayerSprite({
             height: 4,
             background: '#1a1a1a',
             border: '1px solid #333',
+            ...customStyles.healthBar
           }}
         >
           <div style={{ width: `${healthPercent}%`, height: '100%', background: healthColor, transition: 'width 0.3s' }} />
@@ -119,13 +124,14 @@ export default function PlayerSprite({
           width: 32 * scale,
           height: 44 * scale,
           imageRendering: 'pixelated',
+          ...customStyles.sprite
         }}
       >
         {/* ══ CABEÇA ══ */}
-        <Head skinColor={skinColor} hairColor={hairColor} scale={scale} isLocal={isLocal} />
+        <Head skinColor={skinColor} hairColor={hairColor} scale={scale} isLocal={isLocal} customStyles={customStyles} />
 
         {/* ══ CORPO ══ */}
-        <Body skinColor={skinColor} shirtColor={shirtColor} pantsColor={pantsColor} scale={scale} isMoving={isMoving} isAttacking={isAttacking} />
+        <Body skinColor={skinColor} shirtColor={shirtColor} pantsColor={pantsColor} scale={scale} isMoving={isMoving} isAttacking={isAttacking} customStyles={customStyles} />
 
         {/* ══ SOMBRA NO CHÃO ══ */}
         <div style={{
@@ -138,6 +144,7 @@ export default function PlayerSprite({
           background: 'rgba(0,0,0,0.4)',
           borderRadius: '50%',
           filter: 'blur(2px)',
+          ...customStyles.shadow
         }} />
       </div>
     </div>
@@ -145,57 +152,59 @@ export default function PlayerSprite({
 }
 
 // ── Cabeça detalhada ──
-function Head({ skinColor, hairColor, scale, isLocal }: any) {
+function Head({ skinColor, hairColor, scale, isLocal, customStyles }: any) {
   const s = scale;
   return (
-    <div style={{ position: 'absolute', top: 0, left: 4 * s, width: 24 * s, height: 18 * s, imageRendering: 'pixelated' }}>
+    <div style={{ position: 'absolute', top: 0, left: 4 * s, width: 24 * s, height: 18 * s, imageRendering: 'pixelated', ...customStyles.head }}>
       {/* Base da cabeça */}
       <div style={{
         position: 'absolute', inset: 0,
         background: skinColor,
         border: `${2 * s}px solid #2a1a0d`,
         boxShadow: isLocal ? `0 0 8px rgba(57,255,20,0.6)` : undefined,
+        ...customStyles.headBase
       }} />
       {/* Cabelo */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 7 * s,
         background: hairColor,
         borderTop: `${2 * s}px solid #1a0d00`,
+        ...customStyles.hair
       }} />
       {/* Lateral do cabelo esquerda */}
-      <div style={{ position: 'absolute', top: 0, left: 0, width: 3 * s, height: 11 * s, background: hairColor }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: 3 * s, height: 11 * s, background: hairColor, ...customStyles.hairSideL }} />
       {/* Lateral do cabelo direita */}
-      <div style={{ position: 'absolute', top: 0, right: 0, width: 3 * s, height: 11 * s, background: hairColor }} />
+      <div style={{ position: 'absolute', top: 0, right: 0, width: 3 * s, height: 11 * s, background: hairColor, ...customStyles.hairSideR }} />
 
       {/* Olho esquerdo */}
-      <div style={{ position: 'absolute', top: 8 * s, left: 4 * s, width: 5 * s, height: 4 * s, background: '#1a1a1a', border: `${s}px solid #000` }}>
+      <div style={{ position: 'absolute', top: 8 * s, left: 4 * s, width: 5 * s, height: 4 * s, background: '#1a1a1a', border: `${s}px solid #000`, ...customStyles.eyeL }}>
         {/* Íris */}
         <div style={{ position: 'absolute', top: s, left: s, width: 2 * s, height: 2 * s, background: '#3b6ea5' }} />
         {/* Reflexo */}
         <div style={{ position: 'absolute', top: s, right: s, width: s, height: s, background: '#fff' }} />
       </div>
       {/* Olho direito */}
-      <div style={{ position: 'absolute', top: 8 * s, right: 4 * s, width: 5 * s, height: 4 * s, background: '#1a1a1a', border: `${s}px solid #000` }}>
+      <div style={{ position: 'absolute', top: 8 * s, right: 4 * s, width: 5 * s, height: 4 * s, background: '#1a1a1a', border: `${s}px solid #000`, ...customStyles.eyeR }}>
         <div style={{ position: 'absolute', top: s, left: s, width: 2 * s, height: 2 * s, background: '#3b6ea5' }} />
         <div style={{ position: 'absolute', top: s, right: s, width: s, height: s, background: '#fff' }} />
       </div>
       {/* Nariz */}
-      <div style={{ position: 'absolute', top: 10 * s, left: '50%', transform: 'translateX(-50%)', width: 3 * s, height: 2 * s, background: 'rgba(0,0,0,0.2)' }} />
+      <div style={{ position: 'absolute', top: 10 * s, left: '50%', transform: 'translateX(-50%)', width: 3 * s, height: 2 * s, background: 'rgba(0,0,0,0.2)', ...customStyles.nose }} />
       {/* Boca */}
-      <div style={{ position: 'absolute', bottom: 3 * s, left: 6 * s, width: 10 * s, height: 2 * s, background: '#8B4513' }}>
+      <div style={{ position: 'absolute', bottom: 3 * s, left: 6 * s, width: 10 * s, height: 2 * s, background: '#8B4513', ...customStyles.mouth }}>
         {/* Dente */}
         <div style={{ position: 'absolute', top: 0, left: 3 * s, width: 2 * s, height: 2 * s, background: '#fff' }} />
         <div style={{ position: 'absolute', top: 0, right: 3 * s, width: 2 * s, height: 2 * s, background: '#fff' }} />
       </div>
       {/* Orelha */}
-      <div style={{ position: 'absolute', top: 7 * s, left: -3 * s, width: 4 * s, height: 6 * s, background: skinColor, border: `${s}px solid #2a1a0d` }} />
-      <div style={{ position: 'absolute', top: 7 * s, right: -3 * s, width: 4 * s, height: 6 * s, background: skinColor, border: `${s}px solid #2a1a0d` }} />
+      <div style={{ position: 'absolute', top: 7 * s, left: -3 * s, width: 4 * s, height: 6 * s, background: skinColor, border: `${s}px solid #2a1a0d`, ...customStyles.earL }} />
+      <div style={{ position: 'absolute', top: 7 * s, right: -3 * s, width: 4 * s, height: 6 * s, background: skinColor, border: `${s}px solid #2a1a0d`, ...customStyles.earR }} />
     </div>
   );
 }
 
 // ── Corpo detalhado ──
-function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking }: any) {
+function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking, customStyles }: any) {
   const s = scale;
   // Classes de Animação CSS 
   const legLeftClass = isMoving ? 'anim-leg-left' : '';
@@ -209,6 +218,7 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking 
       <div style={{
         position: 'absolute', top: 18 * s, left: 4 * s, width: 24 * s, height: 16 * s,
         background: shirtColor, border: `${2 * s}px solid rgba(0,0,0,0.6)`,
+        ...customStyles.torso
       }}>
         {/* Detalhe bolso */}
         <div style={{ position: 'absolute', top: 3 * s, left: 2 * s, width: 7 * s, height: 6 * s, background: 'rgba(255,255,255,0.06)', border: `${s}px solid rgba(255,255,255,0.12)` }} />
@@ -226,6 +236,7 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking 
         background: skinColor, border: `${s}px solid #2a1a0d`,
         transformOrigin: 'top center',
         transition: 'transform 0.15s',
+        ...customStyles.armL
       }}>
         {/* Mão */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5 * s, background: skinColor, borderRadius: '0 0 2px 2px' }} />
@@ -239,12 +250,14 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking 
         transformOrigin: 'top center',
         transform: 'rotate(0deg)',
         transition: 'transform 0.1s',
+        ...customStyles.armR
       }}>
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5 * s, background: skinColor, borderRadius: '0 0 2px 2px' }} />
         {/* Pistola */}
         <div style={{
           position: 'absolute', bottom: 3 * s, right: -14 * s,
           width: 16 * s, height: 7 * s,
+          ...customStyles.weapon
         }}>
           {/* Cabo */}
           <div style={{ position: 'absolute', bottom: 0, left: 0, width: 7 * s, height: 7 * s, background: '#1a1a1a', border: `${s}px solid #444` }} />
@@ -265,6 +278,7 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking 
         </div>
       </div>
 
+
       {/* ── Cinturão ── */}
       <div style={{
         position: 'absolute', top: 33 * s, left: 4 * s, width: 24 * s, height: 3 * s,
@@ -281,11 +295,12 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking 
         background: pantsColor, border: `${s}px solid #1a1a2a`,
         transformOrigin: 'top center',
         transition: 'transform 0.15s',
+        ...customStyles.legL
       }}>
         {/* Costura */}
         <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: s, background: 'rgba(255,255,255,0.08)' }} />
         {/* Bota */}
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 5 * s, background: '#1a0d00', border: `${s}px solid #333` }}>
+        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 5 * s, background: '#1a0d00', border: `${s}px solid #333`, ...customStyles.bootL }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2 * s, background: 'rgba(255,255,255,0.06)' }} />
         </div>
       </div>
@@ -297,10 +312,11 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking 
         background: pantsColor, border: `${s}px solid #1a1a2a`,
         transformOrigin: 'top center',
         transition: 'transform 0.15s',
+        ...customStyles.legR
       }}>
         <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: s, background: 'rgba(255,255,255,0.08)' }} />
         {/* Bota */}
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 5 * s, background: '#1a0d00', border: `${s}px solid #333` }}>
+        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 5 * s, background: '#1a0d00', border: `${s}px solid #333`, ...customStyles.bootR }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2 * s, background: 'rgba(255,255,255,0.06)' }} />
         </div>
       </div>
