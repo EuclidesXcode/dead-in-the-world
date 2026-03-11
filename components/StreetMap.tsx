@@ -165,6 +165,9 @@ export default function StreetMap({
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const loadedRef = useRef(false);
 
+  // Buffer de cálculo para culling (margem menor que buffer SVG para desenhar um pouco fora)
+  const cullBuffer = 300;
+
   // Busca dados OSM uma vez ao montar
   useEffect(() => {
     if (loadedRef.current || !playerLat || !playerLng) return;
@@ -255,12 +258,18 @@ export default function StreetMap({
         {greenAreas.map(way => {
           const pts = nodesToPts(way.geometry, originTileX, originTileY);
           if (pts.length < 3) return null;
+          // Culling simples (bounding box bounding box)
+          const minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
+          const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
+          if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
+              maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
+
           const rand = seededRand(way.id);
           return (
             <g key={`green-${way.id}`}>
               <polygon points={ptsToPolygon(pts)} fill={GREEN_DARK} stroke="#0a1304" strokeWidth="1" />
               {/* Mato denso na área verde */}
-              {Array.from({ length: 20 }, (_, i) => {
+              {Array.from({ length: 8 }, (_, i) => {
                 const cx = pts[0].x + (rand() - 0.5) * 120;
                 const cy = pts[0].y + (rand() - 0.5) * 120;
                 return <WeedCluster key={i} cx={cx} cy={cy} size={12 + rand() * 20} rand={rand} />;
@@ -273,11 +282,16 @@ export default function StreetMap({
         {roads.map(way => {
           const type = way.tags.highway;
           if (['footway', 'cycleway', 'path', 'steps'].includes(type)) return null;
+          const pts = nodesToPts(way.geometry, originTileX, originTileY);
+          if (pts.length < 2) return null;
+          const minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
+          const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
+          if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
+              maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
+
           const realW = ROAD_WIDTHS_M[type] ?? 9;
           const roadPx = getPixelWidth(realW, lat);
           const sidewalkPx = roadPx + getPixelWidth(realW * 0.35, lat) * 2;
-          const pts = nodesToPts(way.geometry, originTileX, originTileY);
-          if (pts.length < 2) return null;
           return (
             <path key={`sw-${way.id}`} d={ptsToD(pts)}
               fill="none" stroke="url(#sidewalk-pat)"
@@ -288,11 +302,16 @@ export default function StreetMap({
 
         {/* ── ASFALTO (camada principal da rua) ── */}
         {roads.map(way => {
+          const pts = nodesToPts(way.geometry, originTileX, originTileY);
+          if (pts.length < 2) return null;
+          const minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
+          const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
+          if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
+              maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
+
           const type = way.tags.highway;
           const realW = ROAD_WIDTHS_M[type] ?? 9;
           const roadPx = getPixelWidth(realW, lat);
-          const pts = nodesToPts(way.geometry, originTileX, originTileY);
-          if (pts.length < 2) return null;
           const isMinor = ['footway', 'cycleway', 'path', 'steps'].includes(type);
           return (
             <path key={`rd-${way.id}`} d={ptsToD(pts)}
@@ -308,10 +327,15 @@ export default function StreetMap({
         {roads.map(way => {
           const type = way.tags.highway;
           if (!ROAD_IS_MAJOR[type]) return null;
-          const realW = ROAD_WIDTHS_M[type] ?? 9;
-          const roadPx = getPixelWidth(realW, lat);
           const pts = nodesToPts(way.geometry, originTileX, originTileY);
           if (pts.length < 2) return null;
+          const minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
+          const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
+          if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
+              maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
+
+          const realW = ROAD_WIDTHS_M[type] ?? 9;
+          const roadPx = getPixelWidth(realW, lat);
           const dashLen = Math.round(roadPx * 1.2);
           return (
             <path key={`ln-${way.id}`} d={ptsToD(pts)}
@@ -328,6 +352,11 @@ export default function StreetMap({
         {buildings.map(way => {
           const pts = nodesToPts(way.geometry, originTileX, originTileY);
           if (pts.length < 3) return null;
+          const minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
+          const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
+          if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
+              maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
+
           const rand = seededRand(way.id);
           const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
           const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
@@ -342,7 +371,7 @@ export default function StreetMap({
               <polygon points={ptsToPolygon(pts)} fill="none"
                 stroke="rgba(45,38,28,0.45)" strokeWidth="1" />
               {/* Janelas quebradas */}
-              {Array.from({ length: Math.floor(rand() * 5) + 2 }, (_, i) => {
+              {Array.from({ length: Math.floor(rand() * 2) + 1 }, (_, i) => {
                 if (rand() > 0.65) return null;
                 const wx = cx + (rand() - 0.5) * 32;
                 const wy = cy + (rand() - 0.5) * 32;
@@ -370,11 +399,16 @@ export default function StreetMap({
 
         {/* ── DECORAÇÕES PÓS-APOCALÍPTICAS nas ruas ── */}
         {roads.map(way => {
+          const pts = nodesToPts(way.geometry, originTileX, originTileY);
+          if (pts.length < 2) return null;
+          const minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
+          const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
+          if (maxX < viewportX - cullBuffer || minX > viewportX + screenW + cullBuffer ||
+              maxY < viewportY - cullBuffer || minY > viewportY + screenH + cullBuffer) return null;
+
           const type = way.tags.highway;
           const realW = ROAD_WIDTHS_M[type] ?? 9;
           const roadPx = getPixelWidth(realW, lat);
-          const pts = nodesToPts(way.geometry, originTileX, originTileY);
-          if (pts.length < 2) return null;
           const len = polyLen(pts);
           const rand = seededRand(way.id * 31);
           const isMajor = ROAD_IS_MAJOR[type] ?? false;
@@ -383,7 +417,7 @@ export default function StreetMap({
           // ── Mato nas bordas ──
           const weedStep = 38;
           const weedCount = Math.floor(len / weedStep);
-          for (let i = 0; i < weedCount; i++) {
+          for (let i = 0; i < Math.min(weedCount, 15); i++) {
             if (rand() > 0.45) continue;
             const t = (i + 0.2 + rand() * 0.6) / Math.max(1, weedCount);
             const pos = polyPoint(pts, t);
@@ -393,16 +427,16 @@ export default function StreetMap({
             const perpR = (pos.angle + 90) * Math.PI / 180;
             const wx = pos.x + Math.cos(perpR) * edgeOffset;
             const wy = pos.y + Math.sin(perpR) * edgeOffset;
-            el.push(
-              <WeedCluster key={`w${i}`} cx={wx} cy={wy} size={5 + rand() * 12} rand={rand} />
-            );
+            if (wx > viewportX && wx < viewportX + screenW && wy > viewportY && wy < viewportY + screenH) {
+              el.push(<WeedCluster key={`w${i}`} cx={wx} cy={wy} size={5 + rand() * 12} rand={rand} />);
+            }
           }
 
           // ── Carros enferrujados (nas ruas principais) ──
           if (isMajor) {
             const carStep = 180;
             const carCount = Math.floor(len / carStep);
-            for (let i = 0; i < carCount; i++) {
+            for (let i = 0; i < Math.min(carCount, 5); i++) {
               if (rand() > 0.38) continue;
               const t = (i + 0.4 + rand() * 0.2) / Math.max(1, carCount);
               const pos = polyPoint(pts, t);
@@ -412,17 +446,17 @@ export default function StreetMap({
               const perpR = (pos.angle + 90) * Math.PI / 180;
               const carX = pos.x + Math.cos(perpR) * carOffset;
               const carY = pos.y + Math.sin(perpR) * carOffset;
-              el.push(
-                <RustedCar key={`car${i}`} cx={carX} cy={carY} angle={pos.angle} rand={rand} />
-              );
+              if (carX > viewportX - 100 && carX < viewportX + screenW + 100 && carY > viewportY - 100 && carY < viewportY + screenH + 100) {
+                el.push(<RustedCar key={`car${i}`} cx={carX} cy={carY} angle={pos.angle} rand={rand} />);
+              }
             }
           }
 
           // ── Rachaduras no asfalto ──
           if (isMajor) {
-            const crackStep = 90;
+            const crackStep = 120;
             const crackCount = Math.floor(len / crackStep);
-            for (let i = 0; i < crackCount; i++) {
+            for (let i = 0; i < Math.min(crackCount, 8); i++) {
               if (rand() > 0.45) continue;
               const t = (i + rand()) / Math.max(1, crackCount);
               const pos = polyPoint(pts, t);
@@ -430,25 +464,14 @@ export default function StreetMap({
               const perpR = (pos.angle + 90) * Math.PI / 180;
               const crackW = roadPx * (0.3 + rand() * 0.55);
               // Rachadura principal
-              el.push(
-                <line key={`cr${i}`}
-                  x1={pos.x - Math.cos(perpR) * crackW / 2}
-                  y1={pos.y - Math.sin(perpR) * crackW / 2}
-                  x2={pos.x + Math.cos(perpR) * crackW / 2}
-                  y2={pos.y + Math.sin(perpR) * crackW / 2}
-                  stroke="rgba(6,6,5,0.65)" strokeWidth={0.6 + rand() * 0.8} strokeLinecap="round"
-                />
-              );
-              // Ramificações
-              if (rand() > 0.5) {
-                const branchAngle = perpR + (rand() - 0.5) * 1.2;
-                const brL = crackW * (0.2 + rand() * 0.4);
+              if (pos.x > viewportX - 100 && pos.x < viewportX + screenW + 100 && pos.y > viewportY - 100 && pos.y < viewportY + screenH + 100) {
                 el.push(
-                  <line key={`crb${i}`}
-                    x1={pos.x} y1={pos.y}
-                    x2={pos.x + Math.cos(branchAngle) * brL}
-                    y2={pos.y + Math.sin(branchAngle) * brL}
-                    stroke="rgba(6,6,5,0.5)" strokeWidth="0.5" strokeLinecap="round"
+                  <line key={`cr${i}`}
+                    x1={pos.x - Math.cos(perpR) * crackW / 2}
+                    y1={pos.y - Math.sin(perpR) * crackW / 2}
+                    x2={pos.x + Math.cos(perpR) * crackW / 2}
+                    y2={pos.y + Math.sin(perpR) * crackW / 2}
+                    stroke="rgba(6,6,5,0.65)" strokeWidth={0.6 + rand() * 0.8} strokeLinecap="round"
                   />
                 );
               }
@@ -459,7 +482,7 @@ export default function StreetMap({
           if (isMajor && rand() > 0.6) {
             const t = rand();
             const pos = polyPoint(pts, t);
-            if (pos) {
+            if (pos && pos.x > viewportX && pos.x < viewportX + screenW && pos.y > viewportY && pos.y < viewportY + screenH) {
               const perpR = (pos.angle + 90) * Math.PI / 180;
               const side = rand() > 0.5 ? 1 : -1;
               const ox = pos.x + Math.cos(perpR) * (roadPx / 2) * side;
