@@ -156,9 +156,9 @@ export function moveZombieTowardsPlayer(
   return { pos_x: newX, pos_y: newY, direction };
 }
 
-// Calcula XP necessário para o próximo nível
+// Calcula XP necessário para o próximo nível (curva exponencial mais acentuada)
 export function xpToNextLevel(level: number): number {
-  return Math.floor(100 * Math.pow(1.5, level - 1));
+  return Math.floor(100 * Math.pow(1.6, level - 1) + (level * 50));
 }
 
 // Verifica level up

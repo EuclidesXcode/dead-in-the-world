@@ -61,7 +61,7 @@ export type TileType =
 
 export type ZombieType = 'walker' | 'runner' | 'tank' | 'screamer' | 'leaper';
 export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
-export type ItemType = 'weapon' | 'ammo' | 'heal' | 'food' | 'water' | 'upgrade' | 'material' | 'utility';
+export type ItemType = 'weapon' | 'ammo' | 'heal' | 'food' | 'water' | 'upgrade' | 'material' | 'utility' | 'explosive';
 
 export interface Player {
   id: string;

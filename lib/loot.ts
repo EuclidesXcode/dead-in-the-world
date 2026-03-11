@@ -168,6 +168,14 @@ export const ITEM_DATABASE: Record<string, {
     stats: { craft_value: 1 },
     description: 'Essencial pra fazer munição', emoji: '🧨',
   },
+  // ---- EXPLOSIVOS (ARREMESSÁVEIS) ----
+  grenade: {
+    item_id: 'grenade', item_name: 'Granada de Fragmentação', item_type: 'explosive',
+    weight: 1.0, rarity: 'rare',
+    stats: { damage: 250, explosion_radius: 120, throw_range: 250 },
+    description: 'Dano em área devastador.', emoji: '💣',
+  },
+  
   // ---- ARMAS AVANÇADAS ----
   plasma_rifle: {
     item_id: 'plasma_rifle', item_name: 'Fuzil de Plasma', item_type: 'weapon',

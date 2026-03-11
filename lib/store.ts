@@ -108,8 +108,8 @@ interface GameState {
   notifications: Array<{ id: string; message: string; type: 'info' | 'success' | 'warning' | 'danger'; createdAt: number }>;
   addNotification: (message: string, type?: 'info' | 'success' | 'warning' | 'danger') => void;
   clearNotification: (id: string) => void;
-  activeWeaponSlot: 'primary' | 'secondary';
-  setActiveWeaponSlot: (slot: 'primary' | 'secondary') => void;
+  activeWeaponSlot: 'primary' | 'secondary' | 'explosive';
+  setActiveWeaponSlot: (slot: 'primary' | 'secondary' | 'explosive') => void;
 
   // Camera Zoom
   cameraZoom: number;
@@ -278,8 +278,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
     })),
-  activeWeaponSlot: 'primary',
-  setActiveWeaponSlot: (activeWeaponSlot) => set({ activeWeaponSlot }),
+  activeWeaponSlot: 'primary' as 'primary' | 'secondary' | 'explosive',
+  setActiveWeaponSlot: (slot) => set({ activeWeaponSlot: slot }),
 
   // Camera Zoom
   cameraZoom: 1,

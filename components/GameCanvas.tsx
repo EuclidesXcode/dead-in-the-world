@@ -179,6 +179,10 @@ export default function GameCanvas() {
         st.setActiveWeaponSlot('secondary');
         st.addNotification('Arma Secundária Selecionada', 'info');
       }
+      if (e.code === 'Digit3') {
+        st.setActiveWeaponSlot('explosive');
+        st.addNotification('Explosivo Selecionado', 'info');
+      }
 
       // Atalhos de UI mantidos ou movidos
       if (e.code === 'KeyM') st.toggleMap();
@@ -254,33 +258,21 @@ export default function GameCanvas() {
     }
   }, [player?.current_health === 0]);
 
-  // ── Evento Global Aleatório: Bombardeio + Horda ──
+  // ── Evento Global Aleatório: Horda a cada 10 min ──
   useEffect(() => {
+    // 10 minutos (600000ms)
     const interval = setInterval(() => {
-       // Chance de 15% a cada 15 segundos se não houver horda
-       if (Math.random() < 0.15 && !hordeActive && airstrikes.length === 0) {
-          useGameStore.getState().addNotification('⚠️ ALERTA MILITAR: BOMBARDEIO E HORDA IMINENTES!', 'danger');
+       if (!hordeActive) {
+          useGameStore.getState().addNotification('⚠️ ALERTA: IMENSA HORDA DE ZUMBIS SE APROXIMANDO!', 'danger');
           
           setHordeActive(true);
-          setHordeTimer(30);
+          setHordeTimer(60); // 1 minuto de frenesi de spawns
 
-          const px = playerPosRef.current.x;
-          const py = playerPosRef.current.y;
-          const zones = [];
-          for (let i = 0; i < 6; i++) {
-             zones.push({
-               id: Math.random().toString(),
-               x: px + (Math.random() * 800 - 400),
-               y: py + (Math.random() * 800 - 400),
-               radius: 100 + Math.random() * 80,
-               timer: 3 + Math.random() * 6 // Explodem entre 3 e 9 segundos
-             });
-          }
-          setAirstrikes(zones);
+          // Os zumbis spawnam freneticamente no scheduleSpawn porque maxZombies aumenta e ele roda mais vezes.
        }
-    }, 15000);
+    }, 600000);
     return () => clearInterval(interval);
-  }, [hordeActive, airstrikes.length]);
+  }, [hordeActive]);
 
   // ── Sistema de Spawn ──
   const scheduleSpawn = useCallback(() => {
@@ -409,6 +401,65 @@ export default function GameCanvas() {
        if (!nearest) return;
        targetX = nearest.pos_x;
        targetY = nearest.pos_y;
+    }
+
+    if (activeSlot === 'explosive') {
+       const grenade = state.inventory.find(i => i.item_type === 'explosive');
+       if (!grenade) {
+          if (now - lastAttackRef.current > 2000) {
+             addNotification('Você não tem explosivos no inventário!', 'warning');
+             lastAttackRef.current = now;
+          }
+          return;
+       }
+       if (now - lastAttackRef.current < 1500) return; // Cooldown de granada (1.5s)
+       lastAttackRef.current = now;
+
+       // Reduz inventário
+       if (grenade.quantity <= 1) {
+          useGameStore.getState().removeInventoryItem(grenade.id);
+          supabase.from('inventory').delete().eq('id', grenade.id).then();
+       } else {
+          useGameStore.getState().updateInventoryItem(grenade.id, { quantity: grenade.quantity - 1 });
+          supabase.from('inventory').update({ quantity: grenade.quantity - 1 }).eq('id', grenade.id).then();
+       }
+
+       // Projétil
+       const projId = crypto.randomUUID();
+       setProjectiles(prev => [...prev.slice(-30), {
+         id: projId, sx: px, sy: py, tx: targetX, ty: targetY, progress: 0,
+         size: 8, type: 'grenade',
+       }]);
+
+       // Explode depois de meio seg.
+       setTimeout(() => {
+          audioSystem?.playShootSound(); // placeholder expl.
+          const radius = grenade.stats?.explosion_radius || 120;
+          const damage = grenade.stats?.damage || 250;
+          
+          addDamageNumber({ x: targetX - state.viewportX, y: targetY - state.viewportY - 40, damage: damage, isCrit: true });
+          
+          const hitTargets = findTargetsAtPosition(targetX, targetY, radius, 30);
+          hitTargets.forEach(t => {
+            if ('zombie_type' in t) {
+              const freshTarget = useGameStore.getState().zombies.get(t.id);
+              if (!freshTarget || !freshTarget.is_alive) return;
+              
+              const newHp = Math.max(0, freshTarget.current_health - (damage * (0.8 + Math.random() * 0.4)));
+              if (newHp <= 0) {
+                setZombie({ ...freshTarget, is_alive: false, current_health: 0 });
+                const drop = generateZombieDrop(freshTarget.pos_x, freshTarget.pos_y);
+                if (drop) useGameStore.getState().addWorldItem(drop);
+                setTimeout(() => removeZombie(t.id), 800);
+                updatePlayerStats({ kills: p.kills + 1, xp: p.xp + (freshTarget.xp_reward || 10) });
+              } else {
+                setZombie({ ...freshTarget, current_health: newHp });
+              }
+            }
+          });
+       }, 500);
+
+       return;
     }
 
     const targets = findTargetsAtPosition(targetX, targetY, 60, (w1 && w2) ? 2 : 1);
@@ -1115,6 +1166,24 @@ export default function GameCanvas() {
           <span>{equippedSecondaryWeapon ? itemEmoji(equippedSecondaryWeapon.item_id) : '✖️'}</span>
           <span>{equippedSecondaryWeapon?.item_name || 'Vazio'}</span>
         </div>
+        <div style={{
+          padding: '10px 15px', background: 'rgba(5,5,5,0.85)', 
+          border: `2px solid ${activeWeaponSlot === 'explosive' ? '#ff3b30' : '#444'}`,
+          borderRadius: 6, color: '#fff', fontSize: 11, fontFamily: 'Outfit, sans-serif',
+          display: 'flex', alignItems: 'center', gap: 8,
+          boxShadow: activeWeaponSlot === 'explosive' ? '0 0 15px rgba(255,59,48,0.3)' : 'none',
+          transition: 'all 0.2s ease',
+          opacity: activeWeaponSlot === 'explosive' ? 1 : 0.6
+        }}>
+          <span style={{ opacity: 0.5 }}>3</span>
+          <span>{useGameStore.getState().inventory.find(i => i.item_type === 'explosive') ? itemEmoji(useGameStore.getState().inventory.find(i => i.item_type === 'explosive')!.item_id) : '💥'}</span>
+          <span>
+            {useGameStore.getState().inventory.find(i => i.item_type === 'explosive') 
+              ? `${useGameStore.getState().inventory.find(i => i.item_type === 'explosive')?.item_name} (${useGameStore.getState().inventory.find(i => i.item_type === 'explosive')?.quantity})` 
+              : 'Sem Explosivo'
+            }
+          </span>
+        </div>
       </div>
 
       {/* ── Atribuição OSM (obrigatória por licença) ── */}
@@ -1133,5 +1202,5 @@ function rarityColor(r: string) {
   return ({ common: '#9ca3af', uncommon: '#22c55e', rare: '#3b82f6', epic: '#a855f7', legendary: '#f59e0b' } as any)[r] || '#9ca3af';
 }
 function itemEmoji(id: string) {
-  return ({ pistol: '🔫', shotgun: '🔫', rifle: '🔫', knife: '🔪', machete: '🗡️', bat: '⚾', bandage: '🩹', medkit: '🧰', pain_meds: '💊', canned_food: '🥫', water_bottle: '💧', ammo_9mm: '🔶', ammo_shotgun: '🔶', ammo_rifle: '🔷' } as any)[id] || '📦';
+  return ({ grenade: '💣', pistol: '🔫', shotgun: '🔫', rifle: '🔫', knife: '🔪', machete: '🗡️', bat: '⚾', bandage: '🩹', medkit: '🧰', pain_meds: '💊', canned_food: '🥫', water_bottle: '💧', ammo_9mm: '🔶', ammo_shotgun: '🔶', ammo_rifle: '🔷' } as any)[id] || '📦';
 }
