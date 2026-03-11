@@ -2,6 +2,8 @@
 import React, { useEffect, useRef } from 'react';
 import { useGameStore } from '@/lib/store';
 import { VERSION, VERSION_LABEL } from '@/lib/version';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 export default function HUD() {
   const { player, equippedWeapon, ammo, toggleInventory, toggleLeaderboard, toggleCharCustomizer, toggleWeaponUpgrade, toggleChat, toggleMap, onlinePlayers } = useGameStore();
@@ -13,6 +15,16 @@ export default function HUD() {
   const xpPercent = (player.xp / player.xp_to_next) * 100;
   const weapon = equippedWeapon;
   const ammoCount = weapon?.stats?.ammo_type ? (ammo[weapon.stats.ammo_type] || 0) : null;
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    if (!window.confirm("Deseja realmente sair? Seu progresso é salvo automaticamente.")) return;
+    
+    // Marca offline antes de sair
+    await supabase.from('players').update({ is_online: false }).eq('id', player.id);
+    await supabase.auth.signOut();
+    router.replace('/');
+  };
 
   return (
     <>
@@ -145,6 +157,7 @@ export default function HUD() {
               { key: 'U', label: 'UPGRADE', icon: '🔫', action: toggleWeaponUpgrade },
               { key: 'T', label: 'CHAT', icon: '💬', action: toggleChat },
               { key: 'L', label: 'RANKING', icon: '🏆', action: toggleLeaderboard },
+              { key: 'ESC', label: 'SAIR', icon: '🚪', action: handleLogout },
             ].map(({ key, label, icon, action }) => (
               <button
                 key={key}

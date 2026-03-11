@@ -11,6 +11,8 @@ import PlayerSprite from './PlayerSprite';
 import ZombieSprite from './ZombieSprite';
 import StreetMap from './StreetMap';
 import { parseCustomCSS } from '@/lib/cssParser';
+import { generateZombieDrop } from '@/lib/loot';
+import { WorldItem as WorldItemType } from '@/lib/supabase';
 
 interface VisualProjectile {
   id: string;
@@ -426,6 +428,13 @@ export default function GameCanvas() {
           const newHp = Math.max(0, freshTarget.current_health - damage);
           if (newHp <= 0) {
             setZombie({ ...freshTarget, is_alive: false, current_health: 0 });
+            
+            // Drop de item
+            const drop = generateZombieDrop(freshTarget.pos_x, freshTarget.pos_y);
+            if (drop) {
+              useGameStore.getState().addWorldItem(drop);
+            }
+
             setTimeout(() => removeZombie(target.id), 800);
             updatePlayerStats({ kills: p.kills + 1, xp: p.xp + freshTarget.xp_reward });
             addNotification(`Zumbi abatido! +${freshTarget.xp_reward} XP`, 'success');

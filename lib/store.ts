@@ -53,6 +53,7 @@ interface GameState {
   worldItems: WorldItem[];
   setWorldItems: (items: WorldItem[]) => void;
   removeWorldItem: (id: string) => void;
+  addWorldItem: (item: WorldItem) => void;
 
   // Inventory
   inventory: InventoryItem[];
@@ -183,6 +184,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setWorldItems: (worldItems) => set({ worldItems }),
   removeWorldItem: (id) =>
     set((state) => ({ worldItems: state.worldItems.filter((i) => i.id !== id) })),
+  addWorldItem: (item) => set((state) => ({ worldItems: [...state.worldItems, item] })),
 
   // Inventory
   inventory: [],

@@ -238,7 +238,48 @@ const LOOT_TABLES: Record<TileType, Array<{ item_id: string; weight: number; qua
   ],
 };
 
-// Gera loot para um tile
+// Gera loot quando um zumbi morre
+export function generateZombieDrop(zx: number, zy: number): any | null {
+  const chance = Math.random();
+  if (chance > 0.35) return null; // 35% de chance de drop
+
+  const rng = Math.random();
+  const dropTable: Array<{ item_id: string; weight: number }> = [
+    { item_id: 'ammo_9mm', weight: 40 },
+    { item_id: 'bandage', weight: 25 },
+    { item_id: 'pain_meds', weight: 15 },
+    { item_id: 'ammo_shotgun', weight: 10 },
+    { item_id: 'canned_food', weight: 8 },
+    { item_id: 'pistol', weight: 2 },
+  ];
+
+  const totalWeight = dropTable.reduce((s, i) => s + i.weight, 0);
+  let pivot = Math.random() * totalWeight;
+  let selectedId = 'ammo_9mm';
+  for (const entry of dropTable) {
+    pivot -= entry.weight;
+    if (pivot <= 0) { selectedId = entry.item_id; break; }
+  }
+
+  const itemDef = ITEM_DATABASE[selectedId];
+  if (!itemDef) return null;
+
+  return {
+    id: Math.random().toString(36).slice(2),
+    item_id: itemDef.item_id,
+    item_name: itemDef.item_name,
+    item_type: itemDef.item_type,
+    quantity: itemDef.item_type === 'ammo' ? 8 : 1,
+    weight: itemDef.weight,
+    rarity: itemDef.rarity,
+    stats: itemDef.stats,
+    pos_x: Number(zx.toFixed(1)),
+    pos_y: Number(zy.toFixed(1)),
+    tile_x: 0, // Não importa pro sistema de render atual do canvas
+    tile_y: 0,
+  };
+}
+
 export function generateTileLoot(
   tile_type: TileType,
   tile_x: number,
