@@ -44,7 +44,14 @@ export default function ZombieSprite({
   const facingLeft = direction > 90 && direction < 270;
   const healthPercent = Math.max(0, Math.min(100, (health / maxHealth) * 100));
 
-  const baseAnim = isMoving ? 'anim-walk-bounce' : 'anim-idle-breath';
+  const animTypeMap = {
+    walker: 'anim-zombie-limp',
+    runner: 'anim-runner-dash',
+    tank: 'anim-tank-stomp',
+    screamer: 'anim-zombie-limp'
+  };
+
+  const baseAnim = isMoving ? animTypeMap[zombieType] : 'anim-idle-breath';
   const hurtAnim = hurtState ? 'anim-hurt' : '';
   const animClass = `${baseAnim} ${hurtAnim}`;
 
@@ -74,10 +81,10 @@ export default function ZombieSprite({
       )}
 
       <div className={animClass}>
-        {zombieType === 'walker' && <WalkerZombie scale={scale} isAttacking={isAttacking} />}
-        {zombieType === 'runner' && <RunnerZombie scale={scale} isAttacking={isAttacking} />}
-        {zombieType === 'tank' && <TankZombie scale={scale} isAttacking={isAttacking} />}
-        {zombieType === 'screamer' && <ScreamerZombie scale={scale} isAttacking={isAttacking} />}
+        {zombieType === 'walker' && <WalkerZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
+        {zombieType === 'runner' && <RunnerZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
+        {zombieType === 'tank' && <TankZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
+        {zombieType === 'screamer' && <ScreamerZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
       </div>
     </div>
   );
@@ -86,7 +93,7 @@ export default function ZombieSprite({
 // ════════════════════════════════════════
 //  WALKER — zumbi padrão
 // ════════════════════════════════════════
-function WalkerZombie({ scale, isAttacking }: { scale: number; isAttacking: boolean }) {
+function WalkerZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
   const s = scale;
   const armL = isAttacking ? 'rotate(-50deg)' : 'rotate(-30deg)';
   const armR = isAttacking ? 'rotate(-50deg)' : 'rotate(-30deg)';
@@ -168,10 +175,10 @@ function WalkerZombie({ scale, isAttacking }: { scale: number; isAttacking: bool
       </div>
 
       {/* ── Pernas ── */}
-      <div className={isAttacking ? '' : 'anim-leg-left'} style={{ position: 'absolute', top: 36 * s, left: 3 * s, width: 9 * s, height: 13 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
+      <div className={isMoving ? 'anim-leg-left' : ''} style={{ position: 'absolute', top: 36 * s, left: 3 * s, width: 9 * s, height: 13 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#1a0d00', border: `${s}px solid #333` }} />
       </div>
-      <div className={isAttacking ? '' : 'anim-leg-right'} style={{ position: 'absolute', top: 38 * s, right: 3 * s, width: 9 * s, height: 11 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
+      <div className={isMoving ? 'anim-leg-right' : ''} style={{ position: 'absolute', top: 38 * s, right: 3 * s, width: 9 * s, height: 11 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#1a0d00', border: `${s}px solid #333` }} />
       </div>
     </div>
@@ -181,7 +188,7 @@ function WalkerZombie({ scale, isAttacking }: { scale: number; isAttacking: bool
 // ════════════════════════════════════════
 //  RUNNER — zumbi rápido e magro
 // ════════════════════════════════════════
-function RunnerZombie({ scale, isAttacking }: { scale: number; isAttacking: boolean }) {
+function RunnerZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
   const s = scale;
 
   return (
@@ -219,10 +226,10 @@ function RunnerZombie({ scale, isAttacking }: { scale: number; isAttacking: bool
         transform: 'rotate(-20deg)', transformOrigin: 'top center',
       }} />
       {/* Pernas longas de corredor */}
-      <div className="anim-leg-left" style={{ position: 'absolute', top: 32 * s, left: 2 * s, width: 8 * s, height: 18 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
+      <div className={isMoving ? "anim-leg-left" : ""} style={{ position: 'absolute', top: 32 * s, left: 2 * s, width: 8 * s, height: 18 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
       </div>
-      <div className="anim-leg-right" style={{ position: 'absolute', top: 34 * s, right: 2 * s, width: 8 * s, height: 16 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
+      <div className={isMoving ? "anim-leg-right" : ""} style={{ position: 'absolute', top: 34 * s, right: 2 * s, width: 8 * s, height: 16 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
       </div>
     </div>
@@ -232,7 +239,7 @@ function RunnerZombie({ scale, isAttacking }: { scale: number; isAttacking: bool
 // ════════════════════════════════════════
 //  TANK — zumbi gordo e resistente
 // ════════════════════════════════════════
-function TankZombie({ scale, isAttacking }: { scale: number; isAttacking: boolean }) {
+function TankZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
   const s = scale;
 
   return (
@@ -284,10 +291,10 @@ function TankZombie({ scale, isAttacking }: { scale: number; isAttacking: boolea
       }} />
 
       {/* Pernas grossas */}
-      <div className="anim-leg-left" style={{ position: 'absolute', top: 48 * s, left: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
+      <div className={isMoving ? "anim-leg-left" : ""} style={{ position: 'absolute', top: 48 * s, left: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
         <div style={{ position: 'absolute', bottom: 0, inset: 0, height: 4 * s, background: '#0d0500', top: 'auto' }} />
       </div>
-      <div className="anim-leg-right" style={{ position: 'absolute', top: 48 * s, right: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
+      <div className={isMoving ? "anim-leg-right" : ""} style={{ position: 'absolute', top: 48 * s, right: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
         <div style={{ position: 'absolute', bottom: 0, inset: 0, height: 4 * s, background: '#0d0500', top: 'auto' }} />
       </div>
     </div>
@@ -297,7 +304,7 @@ function TankZombie({ scale, isAttacking }: { scale: number; isAttacking: boolea
 // ════════════════════════════════════════
 //  SCREAMER — zumbi que grita e chama hordas
 // ════════════════════════════════════════
-function ScreamerZombie({ scale, isAttacking }: { scale: number; isAttacking: boolean }) {
+function ScreamerZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
   const s = scale;
   const mouthOpen = isAttacking ? 10 * s : 5 * s;
 
@@ -342,10 +349,10 @@ function ScreamerZombie({ scale, isAttacking }: { scale: number; isAttacking: bo
       <div style={{ position: 'absolute', top: 16 * s, left: -4 * s, width: 6 * s, height: 16 * s, background: '#52806a', border: `${s}px solid #2a4a3a`, transform: 'rotate(-60deg)', transformOrigin: 'top center' }} />
       <div style={{ position: 'absolute', top: 16 * s, right: -4 * s, width: 6 * s, height: 16 * s, background: '#52806a', border: `${s}px solid #2a4a3a`, transform: 'rotate(60deg)', transformOrigin: 'top center' }} />
       {/* Pernas */}
-      <div style={{ position: 'absolute', top: 38 * s, left: 3 * s, width: 9 * s, height: 14 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
+      <div className={isMoving ? 'anim-leg-left' : ''} style={{ position: 'absolute', top: 38 * s, left: 3 * s, width: 9 * s, height: 14 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
       </div>
-      <div style={{ position: 'absolute', top: 38 * s, right: 3 * s, width: 9 * s, height: 14 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
+      <div className={isMoving ? 'anim-leg-right' : ''} style={{ position: 'absolute', top: 38 * s, right: 3 * s, width: 9 * s, height: 14 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
         <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
       </div>
     </div>

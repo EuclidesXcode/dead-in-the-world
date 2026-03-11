@@ -448,59 +448,98 @@ html, body {
 }
 
 /* ================================================
-   PLAYER ANIMATIONS
+   PLAYER & ZOMBIE ANIMATIONS (REMASTERED)
    ================================================ */
+
 @keyframes player-walk-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px) rotate(2deg); }
-}
-@keyframes jump-breath {
-  0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(1.05); }
-}
-@keyframes leg-swing-left {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(25deg); }
-  75% { transform: rotate(-25deg); }
-}
-@keyframes leg-swing-right {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-25deg); }
-  75% { transform: rotate(25deg); }
-}
-@keyframes arm-swing-left {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-20deg); }
-}
-@keyframes weapon-recoil {
-  0% { transform: translateX(0) rotate(-40deg); }
-  20% { transform: translateX(6px) translateY(1px) rotate(-48deg); }
-  100% { transform: translateX(0) rotate(-40deg); }
-}
-@keyframes player-hurt {
-  0% { filter: brightness(1) sepia(0) hue-rotate(0deg); }
-  20% { filter: brightness(1.5) sepia(1) hue-rotate(-50deg) saturate(5); transform: scale(1.1); }
-  100% { filter: brightness(1) sepia(0) hue-rotate(0deg); transform: scale(1); }
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-5px) rotate(3deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(-5px) rotate(-3deg); }
 }
 
-.anim-walk-bounce {
-  animation: player-walk-bounce 0.4s infinite linear;
+@keyframes zombie-walk-limp {
+  0%, 100% { transform: translateY(0) translateX(0) rotate(0deg); }
+  33% { transform: translateY(-3px) translateX(2px) rotate(4deg); }
+  66% { transform: translateY(-1px) translateX(-1px) rotate(-2deg); }
 }
-.anim-idle-breath {
-  animation: jump-breath 2s infinite ease-in-out;
+
+@keyframes runner-dash {
+  0%, 100% { transform: translateY(0) skewX(5deg); }
+  50% { transform: translateY(-6px) skewX(15deg); }
 }
-.anim-leg-left {
-  animation: leg-swing-left 0.4s infinite linear;
+
+@keyframes tank-stomp {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-3px) scale(1.05, 0.95); }
 }
-.anim-leg-right {
-  animation: leg-swing-right 0.4s infinite linear;
+
+@keyframes jump-breath {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.02, 0.98) translateY(1px); }
 }
-.anim-arm-left {
-  animation: arm-swing-left 0.4s infinite alternate linear;
+
+@keyframes head-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(2px); }
 }
-.anim-recoil {
-  animation: weapon-recoil 0.15s ease-out;
+
+@keyframes leg-swing-left {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  25% { transform: rotate(35deg) translateY(-2px); }
+  75% { transform: rotate(-35deg) translateY(0); }
 }
-.anim-hurt {
-  animation: player-hurt 0.4s ease-out forwards;
+
+@keyframes leg-swing-right {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  25% { transform: rotate(-35deg) translateY(0); }
+  75% { transform: rotate(35deg) translateY(-2px); }
 }
+
+@keyframes arm-swing-left {
+  0%, 100% { transform: rotate(10deg); }
+  50% { transform: rotate(-30deg); }
+}
+
+@keyframes weapon-recoil {
+  0% { transform: translateX(0) rotate(0deg) scale(1); }
+  10% { transform: translateX(10px) rotate(-15deg) scale(1.1); filter: brightness(2); }
+  100% { transform: translateX(0) rotate(0deg) scale(1); filter: brightness(1); }
+}
+
+@keyframes player-hurt {
+  0% { filter: brightness(1) contrast(1); transform: translateX(0); }
+  10% { filter: brightness(5) contrast(2) invert(0.2); transform: translateX(-5px); }
+  20% { transform: translateX(5px); }
+  30% { transform: translateX(-3px); }
+  100% { filter: brightness(1) contrast(1); transform: translateX(0); }
+}
+
+@keyframes muzzle-flash {
+  0% { transform: translate(0, -50%) scale(0); opacity: 0; }
+  50% { transform: translate(5px, -50%) scale(1.5); opacity: 1; }
+  100% { transform: translate(10px, -50%) scale(2); opacity: 0; }
+}
+
+@keyframes pulse-neon {
+  0%, 100% { box-shadow: 0 0 5px var(--neon); }
+  50% { box-shadow: 0 0 15px var(--neon), 0 0 25px rgba(57, 255, 20, 0.3); }
+}
+
+.anim-walk-bounce { animation: player-walk-bounce 0.45s infinite cubic-bezier(0.45, 0.05, 0.55, 0.95); }
+.anim-zombie-limp { animation: zombie-walk-limp 0.7s infinite linear; }
+.anim-runner-dash { animation: runner-dash 0.3s infinite linear; }
+.anim-tank-stomp { animation: tank-stomp 0.8s infinite ease-in-out; }
+
+.anim-idle-breath { animation: jump-breath 2.5s infinite ease-in-out; }
+.anim-head-bob { animation: head-bob 1.25s infinite ease-in-out; }
+
+.anim-leg-left { animation: leg-swing-left 0.45s infinite linear; }
+.anim-leg-right { animation: leg-swing-right 0.45s infinite linear; }
+.anim-arm-left { animation: arm-swing-left 0.45s infinite alternate ease-in-out; }
+
+.anim-recoil { animation: weapon-recoil 0.12s ease-out; }
+.anim-hurt { animation: player-hurt 0.4s ease-out; }
+.anim-muzzle { animation: muzzle-flash 0.1s ease-out forwards; }
+.anim-neon-pulse { animation: pulse-neon 2s infinite ease-in-out; }
+

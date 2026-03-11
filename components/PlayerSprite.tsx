@@ -58,6 +58,9 @@ export default function PlayerSprite({
 
   const baseAnim = isMoving ? 'anim-walk-bounce' : 'anim-idle-breath';
   const hurtAnim = hurtState ? 'anim-hurt' : '';
+  
+  // Inclinação rítmica ao mover
+  const tilt = isMoving ? (facingLeft ? -8 : 8) : 0;
 
   const healthPercent = Math.max(0, Math.min(100, (health / maxHealth) * 100));
   const healthColor = healthPercent > 60 ? '#22c55e' : healthPercent > 30 ? '#f59e0b' : '#dc2626';
@@ -71,8 +74,8 @@ export default function PlayerSprite({
         flexDirection: 'column',
         alignItems: 'center',
         imageRendering: 'pixelated',
-        transform: `scaleX(${scaleX})`,
-        transition: 'transform 0.1s',
+        transform: `rotate(${tilt}deg) scaleX(${scaleX})`,
+        transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         ...customStyles.container
       }}
     >
@@ -81,14 +84,14 @@ export default function PlayerSprite({
         <div
           style={{
             position: 'absolute',
-            top: -18,
+            top: -22,
             left: '50%',
             transform: `translateX(-50%) scaleX(${scaleX})`,
             whiteSpace: 'nowrap',
-            fontSize: 8,
+            fontSize: 7,
             fontFamily: "'Press Start 2P', monospace",
             color: isLocal ? '#39ff14' : '#fff',
-            textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000',
+            textShadow: '1px 1px 0 #000, -1px -1px 0 #000',
             pointerEvents: 'none',
             ...customStyles.username
           }}
@@ -102,12 +105,12 @@ export default function PlayerSprite({
         <div
           style={{
             position: 'absolute',
-            top: -10,
+            top: -12,
             left: '50%',
             transform: `translateX(-50%) scaleX(${scaleX})`,
             width: 32,
-            height: 4,
-            background: '#1a1a1a',
+            height: 3,
+            background: '#000',
             border: '1px solid #333',
             ...customStyles.healthBar
           }}
@@ -124,26 +127,31 @@ export default function PlayerSprite({
           width: 32 * scale,
           height: 44 * scale,
           imageRendering: 'pixelated',
+          transformOrigin: 'bottom center',
           ...customStyles.sprite
         }}
       >
-        {/* ══ CABEÇA ══ */}
-        <Head skinColor={skinColor} hairColor={hairColor} scale={scale} isLocal={isLocal} customStyles={customStyles} />
+        {/* ══ CABEÇA (bobbing independente) ══ */}
+        <div className={isMoving ? 'anim-head-bob' : ''} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
+          <Head skinColor={skinColor} hairColor={hairColor} scale={scale} isLocal={isLocal} customStyles={customStyles} />
+        </div>
 
         {/* ══ CORPO ══ */}
         <Body skinColor={skinColor} shirtColor={shirtColor} pantsColor={pantsColor} scale={scale} isMoving={isMoving} isAttacking={isAttacking} customStyles={customStyles} />
 
-        {/* ══ SOMBRA NO CHÃO ══ */}
+        {/* ══ SOMBRA DINÂMICA ══ */}
         <div style={{
           position: 'absolute',
           bottom: -3 * scale,
           left: '50%',
-          transform: 'translateX(-50%)',
-          width: 20 * scale,
-          height: 4 * scale,
-          background: 'rgba(0,0,0,0.4)',
+          transformOrigin: 'center',
+          transform: `translateX(-50%) scale(${isMoving ? 1.2 : 1})`,
+          width: 22 * scale,
+          height: 5 * scale,
+          background: 'rgba(0,0,0,0.5)',
           borderRadius: '50%',
-          filter: 'blur(2px)',
+          filter: 'blur(1px)',
+          transition: 'transform 0.3s ease',
           ...customStyles.shadow
         }} />
       </div>
@@ -249,7 +257,8 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking,
         background: skinColor, border: `${s}px solid #2a1a0d`,
         transformOrigin: 'top center',
         transform: 'rotate(0deg)',
-        transition: 'transform 0.1s',
+        transition: 'transform 0.05s',
+        zIndex: 5,
         ...customStyles.armR
       }}>
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5 * s, background: skinColor, borderRadius: '0 0 2px 2px' }} />
@@ -260,20 +269,23 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking,
           ...customStyles.weapon
         }}>
           {/* Cabo */}
-          <div style={{ position: 'absolute', bottom: 0, left: 0, width: 7 * s, height: 7 * s, background: '#1a1a1a', border: `${s}px solid #444` }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, width: 7 * s, height: 7 * s, background: '#111', border: `${s}px solid #333` }} />
           {/* Cano */}
-          <div style={{ position: 'absolute', top: 0, left: 2 * s, width: 14 * s, height: 5 * s, background: '#222', border: `${s}px solid #555` }}>
+          <div style={{ position: 'absolute', top: 0, left: 2 * s, width: 14 * s, height: 5 * s, background: '#1a1a1a', border: `${s}px solid #444` }}>
             {/* Mira */}
-            <div style={{ position: 'absolute', top: 0, left: 3 * s, width: 2 * s, height: 2 * s, background: '#555' }} />
+            <div style={{ position: 'absolute', top: 0, left: 3 * s, width: 2 * s, height: 2 * s, background: '#444' }} />
           </div>
           {/* Flash de tiro */}
           {isAttacking && (
-            <div style={{
-              position: 'absolute', top: '50%', right: -6 * s, transform: 'translateY(-50%)',
-              width: 8 * s, height: 8 * s,
-              background: 'radial-gradient(circle, #fff 20%, #ffd700 50%, transparent 100%)',
-              animation: 'muzzle-flash 0.1s ease-out',
-            }} />
+            <div 
+              className="anim-muzzle"
+              style={{
+                position: 'absolute', top: '50%', right: -6 * s,
+                width: 12 * s, height: 12 * s,
+                background: 'radial-gradient(circle, #fff 10%, #ffdf00 40%, rgba(255,100,0,0.4) 70%, transparent 100%)',
+                zIndex: 20
+              }} 
+            />
           )}
         </div>
       </div>
