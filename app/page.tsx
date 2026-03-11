@@ -1,7 +1,10 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase, signInWithGoogle } from '@/lib/supabase';
+import { VERSION } from '@/lib/version';
+import dynamic from 'next/dynamic';
+const WorldMap = dynamic(() => import('@/components/WorldMap'), { ssr: false });
 
 /* ──────────────────────────────────────────────────
    CSS Personagem (retro pixel art) em código inline
@@ -99,6 +102,7 @@ export default function LandingPage() {
   const [signing, setSigning] = useState(false);
   const [scanY, setScanY] = useState(0);
   const [blink, setBlink] = useState(true);
+  const [globalStats, setGlobalStats] = useState({ zombies: 0, tiles: 0, players: 0 });
 
   // Animação scanline
   useEffect(() => {
@@ -124,6 +128,21 @@ export default function LandingPage() {
       }
     });
   }, [router]);
+
+  // Carrega stats globais reais
+  useEffect(() => {
+    Promise.all([
+      supabase.from('kill_log').select('id', { count: 'exact', head: true }),
+      supabase.from('map_tiles').select('id', { count: 'exact', head: true }),
+      supabase.from('players').select('id', { count: 'exact', head: true }).eq('is_online', true),
+    ]).then(([kills, tiles, players]) => {
+      setGlobalStats({
+        zombies: kills.count || 0,
+        tiles: tiles.count || 0,
+        players: players.count || 0,
+      });
+    });
+  }, []);
 
   const handleLogin = async () => {
     setSigning(true);
@@ -320,16 +339,21 @@ export default function LandingPage() {
           <div className="mt-4 text-center text-xs" style={{ color: '#444', fontFamily: "'Share Tech Mono', monospace" }}>
             Ao entrar, você concorda em sobreviver.
             <br />
-            <span style={{ color: '#333' }}>Versão 0.1.0 — Alpha</span>
+            <span style={{ color: '#333' }}>v{VERSION} — Alpha</span>
           </div>
         </div>
 
-        {/* Stats globais decorativos */}
-        <div className="mt-8 flex gap-8 text-center">
+        {/* Mapa global — onde o mundo está sendo conquistado */}
+        <div className="mt-8 w-full retro-panel p-4" style={{ maxWidth: 560 }}>
+          <WorldMap />
+        </div>
+
+        {/* Stats globais reais */}
+        <div className="mt-6 flex gap-8 text-center flex-wrap justify-center">
           {[
-            { label: 'Zumbis Mortos', value: '∞' },
-            { label: 'Tiles Explorados', value: '∞' },
-            { label: 'Sobreviventes', value: '∞' },
+            { label: 'Zumbis Mortos', value: globalStats.zombies > 0 ? globalStats.zombies.toLocaleString() : '---' },
+            { label: 'Tiles Explorados', value: globalStats.tiles > 0 ? globalStats.tiles.toLocaleString() : '---' },
+            { label: 'Online Agora', value: globalStats.players > 0 ? globalStats.players.toString() : '0' },
           ].map(({ label, value }) => (
             <div key={label}>
               <div className="pixel-font text-red-500" style={{ fontSize: 14 }}>{value}</div>

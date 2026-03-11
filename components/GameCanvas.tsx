@@ -1,23 +1,29 @@
 'use client';
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useGameStore } from '@/lib/store';
-import { TILE_PIXELS } from '@/lib/mapGenerator';
-import { TILE_COLORS } from '@/lib/mapGenerator';
-import { TileType } from '@/lib/supabase';
+import { Zombie, Player } from '@/lib/supabase';
+import { latLngToOsmTile, playerWorldPixelFromLatLng, getVisibleOsmTiles, getPrefetchOsmTiles, osmTileUrl, GAME_TILE_PX, OSM_ZOOM } from '@/lib/osmTiles';
+import { distance, calculatePlayerDamage, calculateZombieDamage, checkLevelUp } from '@/lib/combat';
+import { calcMaxZombies, createSpawnZombie, nextSpawnDelay } from '@/lib/zombieSpawner';
+import { supabase } from '@/lib/supabase';
 import PlayerSprite from './PlayerSprite';
 import ZombieSprite from './ZombieSprite';
-import { distance, calculatePlayerDamage, canZombieAttack, calculateZombieDamage, checkLevelUp } from '@/lib/combat';
-import { supabase } from '@/lib/supabase';
 
-const TILE_SIZE = TILE_PIXELS; // px por tile no render
-const VIEWPORT_W = typeof window !== 'undefined' ? window.innerWidth : 1920;
-const VIEWPORT_H = typeof window !== 'undefined' ? window.innerHeight : 1080;
+// ── Cache de imagens pre-carregadas ──
+const tileImageCache = new Set<string>();
+
+function preloadTile(url: string) {
+  if (tileImageCache.has(url)) return;
+  tileImageCache.add(url);
+  const img = new Image();
+  img.src = url;
+}
 
 export default function GameCanvas() {
   const {
     player, updatePlayerStats,
     tiles, setTile,
-    zombies, setZombie, removeZombie,
+    zombies, setZombie, removeZombie, addZombie,
     worldItems, removeWorldItem,
     addInventoryItem, inventory,
     onlinePlayers,
@@ -26,7 +32,6 @@ export default function GameCanvas() {
     equippedWeapon, ammo, useAmmo,
     damageNumbers, addDamageNumber, clearOldDamageNumbers,
     addNotification,
-    updatePlayerStats: updatePlayer,
     setEquippedWeapon,
   } = useGameStore();
 
@@ -34,158 +39,196 @@ export default function GameCanvas() {
   const keysRef = useRef<Set<string>>(new Set());
   const lastUpdateRef = useRef(Date.now());
   const lastAttackRef = useRef(0);
-  const playerPosRef = useRef({ x: 0, y: 0 }); // posição em pixels no mundo
+  const playerPosRef = useRef({ x: 0, y: 0 });
+  const originTileRef = useRef({ x: 0, y: 0 });
   const animFrameRef = useRef<number>(0);
+  const spawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [isMoving, setIsMoving] = useState(false);
   const [isAttacking, setIsAttacking] = useState(false);
   const [playerDir, setPlayerDir] = useState(0);
   const [windowSize, setWindowSize] = useState({ w: 800, h: 600 });
+  const [currentTarget, setCurrentTarget] = useState<string | null>(null);
 
+  // ── Window size ──
   useEffect(() => {
     setWindowSize({ w: window.innerWidth, h: window.innerHeight });
-    const handleResize = () => setWindowSize({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const onResize = () => setWindowSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // ── Inicializa posição do player ──
+  // ── Inicializa posição do player usando lat/lng real → pixel OSM ──
   useEffect(() => {
-    if (!player) return;
-    playerPosRef.current = {
-      x: player.tile_x * TILE_SIZE + TILE_SIZE / 2,
-      y: player.tile_y * TILE_SIZE + TILE_SIZE / 2,
-    };
-    setPlayerPixel(playerPosRef.current.x, playerPosRef.current.y);
+    if (!player?.last_lat || !player?.last_lng) return;
+    const { originTileX, originTileY, pixelX, pixelY } =
+      playerWorldPixelFromLatLng(player.last_lat, player.last_lng);
+    originTileRef.current = { x: originTileX, y: originTileY };
+    playerPosRef.current = { x: pixelX, y: pixelY };
+    setPlayerPixel(pixelX, pixelY);
   }, [player?.id]);
 
-  // ── Teclado ──
+  // ── Teclado (WASD) ──
   useEffect(() => {
-    const onKey = (e: KeyboardEvent, down: boolean) => {
-      keysRef.current[down ? 'add' : 'delete'](e.code);
+    const onDown = (e: KeyboardEvent) => {
+      keysRef.current.add(e.code);
+      // Atalhos de UI
+      const st = useGameStore.getState();
+      if (e.code === 'KeyI') st.toggleInventory();
+      if (e.code === 'KeyM') st.toggleMap();
+      if (e.code === 'KeyC') st.toggleCharCustomizer();
+      if (e.code === 'KeyU') st.toggleWeaponUpgrade();
+      if (e.code === 'KeyT') st.toggleChat();
+      if (e.code === 'KeyL') st.toggleLeaderboard();
     };
-    window.addEventListener('keydown', (e) => onKey(e, true));
-    window.addEventListener('keyup', (e) => onKey(e, false));
-
-    // Atalhos de UI
-    const onKeyDown = (e: KeyboardEvent) => {
-      const { toggleInventory, toggleLeaderboard, toggleCharCustomizer, toggleWeaponUpgrade, toggleChat, toggleMap } = useGameStore.getState();
-      if (e.code === 'KeyI') toggleInventory();
-      if (e.code === 'KeyM') toggleMap();
-      if (e.code === 'KeyC') toggleCharCustomizer();
-      if (e.code === 'KeyU') toggleWeaponUpgrade();
-      if (e.code === 'KeyT') toggleChat();
-      if (e.code === 'KeyL') toggleLeaderboard();
-    };
-    window.addEventListener('keydown', onKeyDown);
+    const onUp = (e: KeyboardEvent) => keysRef.current.delete(e.code);
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
     return () => {
-      window.removeEventListener('keydown', (e) => onKey(e, true));
-      window.removeEventListener('keyup', (e) => onKey(e, false));
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
     };
   }, []);
 
-  // ── Clique no mapa para mirar e atirar ──
-  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect || !player) return;
+  // ── Touch movement events ──
+  useEffect(() => {
+    const onTouchMove = (e: CustomEvent) => {
+      const { dx, dy } = e.detail;
+      if (Math.abs(dx) > 0.1) { dx > 0 ? keysRef.current.add('KeyD') : keysRef.current.add('KeyA'); }
+      else { keysRef.current.delete('KeyD'); keysRef.current.delete('KeyA'); }
+      if (Math.abs(dy) > 0.1) { dy > 0 ? keysRef.current.add('KeyS') : keysRef.current.add('KeyW'); }
+      else { keysRef.current.delete('KeyS'); keysRef.current.delete('KeyW'); }
+    };
+    const onTouchStop = () => {
+      ['KeyW', 'KeyA', 'KeyS', 'KeyD'].forEach(k => keysRef.current.delete(k));
+    };
+    const onTouchAttack = () => { lastAttackRef.current = 0; }; // força próximo ataque
+    window.addEventListener('touch-move', onTouchMove as any);
+    window.addEventListener('touch-stop', onTouchStop);
+    window.addEventListener('touch-attack', onTouchAttack);
+    return () => {
+      window.removeEventListener('touch-move', onTouchMove as any);
+      window.removeEventListener('touch-stop', onTouchStop);
+      window.removeEventListener('touch-attack', onTouchAttack);
+    };
+  }, []);
 
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+  // ── Sistema de Spawn ──
+  const scheduleSpawn = useCallback(() => {
+    if (spawnTimerRef.current) clearTimeout(spawnTimerRef.current);
+    spawnTimerRef.current = setTimeout(() => {
+      const state = useGameStore.getState();
+      const p = state.player;
+      if (!p) { scheduleSpawn(); return; }
 
-    // Direção do player para o mouse
-    const worldMouseX = mouseX + viewportX;
-    const worldMouseY = mouseY + viewportY;
-    const dx = worldMouseX - playerPosRef.current.x;
-    const dy = worldMouseY - playerPosRef.current.y;
-    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-    setPlayerDir(((angle % 360) + 360) % 360);
+      const aliveZombies = Array.from(state.zombies.values()).filter(z => z.is_alive);
+      const onlineP = state.onlinePlayers;
+      const avgLevel = onlineP.length > 0
+        ? Math.round((p.level + onlineP.reduce((s, op) => s + op.level, 0)) / (onlineP.length + 1))
+        : p.level;
+      const maxZ = calcMaxZombies(avgLevel, onlineP.length + 1);
 
-    // Atacar
-    attack(worldMouseX, worldMouseY, angle);
-  }, [player, viewportX, viewportY, equippedWeapon]);
-
-  const attack = useCallback((targetX: number, targetY: number, angle: number) => {
-    const now = Date.now();
-    const weapon = useGameStore.getState().equippedWeapon;
-    const p = useGameStore.getState().player;
-    if (!p) return;
-
-    // Fire rate
-    const fireRate = weapon?.stats?.fire_rate || 1;
-    const cooldown = 1000 / fireRate;
-    if (now - lastAttackRef.current < cooldown) return;
-    lastAttackRef.current = now;
-
-    setIsAttacking(true);
-    setTimeout(() => setIsAttacking(false), 150);
-
-    // Consome munição
-    if (weapon?.stats?.ammo_type) {
-      const canShoot = useGameStore.getState().useAmmo(weapon.stats.ammo_type, 1);
-      if (!canShoot) {
-        addNotification('Sem munição!', 'warning');
-        return;
-      }
-    }
-
-    // Alcance da arma
-    const range = weapon?.stats?.range || 40;
-
-    // Verifica zumbis no alcance
-    const zombieMap = useGameStore.getState().zombies;
-    zombieMap.forEach((zombie) => {
-      if (!zombie.is_alive) return;
-      const zombieDist = distance(playerPosRef.current.x, playerPosRef.current.y, zombie.pos_x, zombie.pos_y);
-      if (zombieDist > range) return;
-
-      // Ângulo para o zumbi
-      const dxZ = zombie.pos_x - playerPosRef.current.x;
-      const dyZ = zombie.pos_y - playerPosRef.current.y;
-      const angleToZombie = Math.atan2(dyZ, dxZ) * (180 / Math.PI);
-      const angleDiff = Math.abs(((angleToZombie - angle + 180 + 360) % 360) - 180);
-      if (angleDiff > 30) return; // spread angular da arma
-
-      const { damage, isCrit, missed } = calculatePlayerDamage(p, weapon);
-
-      // Mostra número de dano
-      addDamageNumber({
-        x: zombie.pos_x - viewportX,
-        y: zombie.pos_y - viewportY - 20,
-        damage: missed ? 0 : damage,
-        isCrit,
-      });
-
-      if (!missed) {
-        const newHealth = Math.max(0, zombie.current_health - damage);
-        if (newHealth <= 0) {
-          // Zumbi morto
-          setZombie({ ...zombie, is_alive: false, current_health: 0 });
-          setTimeout(() => removeZombie(zombie.id), 1000);
-
-          // XP
-          const newXp = p.xp + zombie.xp_reward;
-          const result = checkLevelUp({ ...p, xp: newXp });
-          updatePlayerStats({ kills: p.kills + 1, xp: result.newPlayer.xp, level: result.newPlayer.level });
-          if (result.leveled) {
-            addNotification(`🎉 LEVEL UP! Nível ${result.newPlayer.level}!`, 'success');
-          }
-
-          // Salva kill no Supabase
-          supabase.from('kill_log').insert({
-            player_id: p.id,
-            zombie_type: zombie.zombie_type,
-            zombie_id: zombie.id,
-            tile_x: zombie.tile_x,
-            tile_y: zombie.tile_y,
-            xp_gained: zombie.xp_reward,
-            weapon_used: weapon?.item_id || 'fists',
-          });
-        } else {
-          setZombie({ ...zombie, current_health: newHealth });
+      if (aliveZombies.length < maxZ) {
+        // Spawna 1-3 de uma vez
+        const spawnCount = Math.min(
+          Math.floor(Math.random() * 3) + 1,
+          maxZ - aliveZombies.length
+        );
+        for (let i = 0; i < spawnCount; i++) {
+          const newZombie = createSpawnZombie(
+            playerPosRef.current.x, playerPosRef.current.y,
+            originTileRef.current.x, originTileRef.current.y,
+            avgLevel
+          );
+          addZombie(newZombie as any);
         }
       }
+      scheduleSpawn();
+    }, nextSpawnDelay());
+  }, []);
+
+  useEffect(() => {
+    scheduleSpawn();
+    return () => { if (spawnTimerRef.current) clearTimeout(spawnTimerRef.current); };
+  }, [scheduleSpawn]);
+
+  // ── Auto-aim: encontra zumbi mais próximo no alcance ──
+  const findNearestZombie = useCallback((px: number, py: number, range: number): Zombie | null => {
+    const state = useGameStore.getState();
+    let nearest: Zombie | null = null;
+    let minDist = range;
+    state.zombies.forEach((zombie) => {
+      if (!zombie.is_alive) return;
+      const d = distance(px, py, zombie.pos_x, zombie.pos_y);
+      if (d < minDist) { minDist = d; nearest = zombie as Zombie; }
     });
-  }, [viewportX, viewportY]);
+    return nearest;
+  }, []);
+
+  // ── Auto-attack: dispara no alvo mais próximo ──
+  const autoAttack = useCallback((p: Player, px: number, py: number) => {
+    const now = Date.now();
+    const weapon = useGameStore.getState().equippedWeapon;
+    const fireRate = weapon?.stats?.fire_rate || 0.8;
+    const cooldown = 1000 / fireRate;
+    if (now - lastAttackRef.current < cooldown) return;
+
+    const range = weapon?.stats?.range ? weapon.stats.range * 8 : 300; // range em pixels
+    const target = findNearestZombie(px, py, range);
+    if (!target) { setCurrentTarget(null); return; }
+
+    setCurrentTarget(target.id);
+    lastAttackRef.current = now;
+    setIsAttacking(true);
+    setTimeout(() => setIsAttacking(false), 100);
+
+    // Aponta para o alvo
+    const dx = target.pos_x - px;
+    const dy = target.pos_y - py;
+    setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
+
+    // Consome munição se necessário
+    if (weapon?.stats?.ammo_type) {
+      const ok = useGameStore.getState().useAmmo(weapon.stats.ammo_type, 1);
+      if (!ok) { addNotification('Sem munição!', 'warning'); return; }
+    }
+
+    const { damage, isCrit, missed } = calculatePlayerDamage(p, weapon);
+    const state = useGameStore.getState();
+
+    addDamageNumber({
+      x: target.pos_x - state.viewportX,
+      y: target.pos_y - state.viewportY - 20,
+      damage: missed ? 0 : damage,
+      isCrit,
+    });
+
+    if (!missed) {
+      const newHp = Math.max(0, target.current_health - damage);
+      if (newHp <= 0) {
+        setZombie({ ...target, is_alive: false, current_health: 0 });
+        setCurrentTarget(null);
+        setTimeout(() => removeZombie(target.id), 800);
+
+        const newXp = p.xp + target.xp_reward;
+        const result = checkLevelUp({ ...p, xp: newXp });
+        updatePlayerStats({ kills: p.kills + 1, xp: result.newPlayer.xp, level: result.newPlayer.level });
+        if (result.leveled) addNotification(`🎉 LEVEL UP! Nível ${result.newPlayer.level}!`, 'success');
+
+        supabase.from('kill_log').insert({
+          player_id: p.id,
+          zombie_type: target.zombie_type,
+          zombie_id: target.id,
+          tile_x: target.tile_x,
+          tile_y: target.tile_y,
+          xp_gained: target.xp_reward,
+          weapon_used: weapon?.item_id || 'fists',
+        });
+      } else {
+        setZombie({ ...target, current_health: newHp });
+      }
+    }
+  }, []);
 
   // ── Game Loop Principal ──
   useEffect(() => {
@@ -195,16 +238,12 @@ export default function GameCanvas() {
       lastUpdateRef.current = now;
 
       const p = useGameStore.getState().player;
-      if (!p) {
-        animFrameRef.current = requestAnimationFrame(gameLoop);
-        return;
-      }
+      if (!p) { animFrameRef.current = requestAnimationFrame(gameLoop); return; }
 
-      // ── Movimentação ──
-      const speed = 120 * (1 + p.agility * 0.05); // px/s
+      // Movimentação
+      const speed = 80 * (1 + p.agility * 0.04);
       let dx = 0, dy = 0;
       const keys = keysRef.current;
-
       if (keys.has('KeyW') || keys.has('ArrowUp')) dy -= 1;
       if (keys.has('KeyS') || keys.has('ArrowDown')) dy += 1;
       if (keys.has('KeyA') || keys.has('ArrowLeft')) dx -= 1;
@@ -214,43 +253,35 @@ export default function GameCanvas() {
       setIsMoving(moving);
 
       if (moving) {
-        // Normaliza diagonal
         const len = Math.sqrt(dx * dx + dy * dy);
-        dx = (dx / len) * speed * dt;
-        dy = (dy / len) * speed * dt;
-
-        playerPosRef.current.x += dx;
-        playerPosRef.current.y += dy;
-
-        // Direção do movimento
-        setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
-
-        // Consome stamina
-        const newStamina = Math.max(0, p.current_stamina - dt * 8);
+        playerPosRef.current.x += (dx / len) * speed * dt;
+        playerPosRef.current.y += (dy / len) * speed * dt;
+        const newStamina = Math.max(0, p.current_stamina - dt * 6);
         if (newStamina !== p.current_stamina) updatePlayerStats({ current_stamina: newStamina });
-
-        // Verifica coleta de itens
         checkItemPickup();
       } else {
-        // Recupera stamina
-        const newStamina = Math.min(p.max_stamina, p.current_stamina + dt * 12);
+        const newStamina = Math.min(p.max_stamina, p.current_stamina + dt * 10);
         if (Math.abs(newStamina - p.current_stamina) > 0.1) updatePlayerStats({ current_stamina: newStamina });
       }
 
-      // Atualiza pixel do player
-      setPlayerPixel(playerPosRef.current.x, playerPosRef.current.y);
+      const px = playerPosRef.current.x;
+      const py = playerPosRef.current.y;
+      setPlayerPixel(px, py);
 
-      // ── Viewport segue o player ──
-      const vx = playerPosRef.current.x - windowSize.w / 2;
-      const vy = playerPosRef.current.y - windowSize.h / 2;
-      setViewport(vx, vy);
+      // Viewport
+      const { w, h } = useWindowSize();
+      setViewport(px - w / 2, py - h / 2);
 
-      // ── Move zumbis ──
-      updateZombies(dt, p);
+      // Auto-attack
+      autoAttack(p, px, py);
 
-      // ── Limpa damage numbers ──
+      // Atualiza zumbis
+      updateZombies(dt, p, px, py);
+
+      // Pre-load tiles OSM
+      prefetchNearbyTiles();
+
       clearOldDamageNumbers();
-
       animFrameRef.current = requestAnimationFrame(gameLoop);
     };
 
@@ -258,16 +289,27 @@ export default function GameCanvas() {
     return () => cancelAnimationFrame(animFrameRef.current);
   }, [windowSize]);
 
+  const useWindowSize = () => windowSize;
+
+  const prefetchNearbyTiles = useCallback(() => {
+    const state = useGameStore.getState();
+    const tiles = getPrefetchOsmTiles(
+      state.viewportX, state.viewportY,
+      windowSize.w, windowSize.h,
+      originTileRef.current.x, originTileRef.current.y,
+      3
+    );
+    tiles.forEach(({ tileX, tileY }) => {
+      preloadTile(osmTileUrl(tileX, tileY));
+    });
+  }, [windowSize]);
+
   const checkItemPickup = useCallback(() => {
     const state = useGameStore.getState();
-    const items = state.worldItems;
     const px = playerPosRef.current.x;
     const py = playerPosRef.current.y;
-
-    items.forEach((item) => {
-      const d = distance(px, py, item.pos_x, item.pos_y);
-      if (d < 30) {
-        // Auto pickup
+    state.worldItems.forEach((item) => {
+      if (distance(px, py, item.pos_x, item.pos_y) < 40) {
         removeWorldItem(item.id);
         addInventoryItem({
           id: crypto.randomUUID(),
@@ -284,52 +326,29 @@ export default function GameCanvas() {
           durability: 100,
         });
         addNotification(`Coletou: ${item.item_name}`, 'info');
-
-        // Auto-equipa primeira arma
         if (item.item_type === 'weapon' && !state.equippedWeapon) {
-          setEquippedWeapon({
-            id: crypto.randomUUID(),
-            player_id: state.player?.id || '',
-            item_type: 'weapon',
-            item_id: item.item_id,
-            item_name: item.item_name,
-            quantity: 1,
-            weight: item.weight,
-            rarity: item.rarity,
-            stats: item.stats || {},
-            equipped: true,
-            upgrades: [],
-            durability: 100,
-          });
+          setEquippedWeapon({ ...item, id: crypto.randomUUID(), player_id: state.player?.id || '', equipped: true, upgrades: [], durability: 100 });
         }
       }
     });
   }, []);
 
-  const updateZombies = useCallback((dt: number, p: any) => {
+  const updateZombies = useCallback((dt: number, p: Player, px: number, py: number) => {
     const state = useGameStore.getState();
-    const px = playerPosRef.current.x;
-    const py = playerPosRef.current.y;
-
     state.zombies.forEach((zombie) => {
       if (!zombie.is_alive) return;
-
-      const dist = distance(zombie.pos_x, zombie.pos_y, px, py);
-      const stats_zombie = { detection_range: 200, attack_range: 35 };
-
-      if (dist < stats_zombie.detection_range) {
-        if (dist < stats_zombie.attack_range) {
+      const d = distance(zombie.pos_x, zombie.pos_y, px, py);
+      if (d < 600) {
+        if (d < 40) {
           // Ataca player
-          const dmg = calculateZombieDamage(zombie, p);
-          const newHealth = Math.max(0, (p.current_health || 100) - dmg * dt * 2);
-          if (newHealth !== p.current_health) {
-            updatePlayerStats({ current_health: newHealth });
-          }
+          const dmg = calculateZombieDamage(zombie as any, p);
+          const newHp = Math.max(0, p.current_health - dmg * dt);
+          if (Math.abs(newHp - p.current_health) > 0.05) updatePlayerStats({ current_health: newHp });
         } else {
           // Move em direção ao player
-          const ddx = (px - zombie.pos_x) / dist;
-          const ddy = (py - zombie.pos_y) / dist;
-          const spd = zombie.speed * 60 * dt;
+          const ddx = (px - zombie.pos_x) / d;
+          const ddy = (py - zombie.pos_y) / d;
+          const spd = (zombie.speed * 50) * dt;
           setZombie({
             ...zombie,
             pos_x: zombie.pos_x + ddx * spd,
@@ -343,89 +362,74 @@ export default function GameCanvas() {
 
   if (!player) return null;
 
-  // ── Renderiza tiles visíveis ──
-  const visibleTiles: React.ReactNode[] = [];
-  const tilesAcross = Math.ceil(windowSize.w / TILE_SIZE) + 2;
-  const tilesDown = Math.ceil(windowSize.h / TILE_SIZE) + 2;
-  const startTileX = Math.floor(viewportX / TILE_SIZE) - 1;
-  const startTileY = Math.floor(viewportY / TILE_SIZE) - 1;
+  const { w, h } = windowSize;
 
-  for (let ty = startTileY; ty < startTileY + tilesDown; ty++) {
-    for (let tx = startTileX; tx < startTileX + tilesAcross; tx++) {
-      const key = `${tx},${ty}`;
-      const tile = tiles.get(key);
-      const screenX = tx * TILE_SIZE - viewportX;
-      const screenY = ty * TILE_SIZE - viewportY;
-
-      if (!tile) {
-        // Tile desconhecido / fog of war
-        visibleTiles.push(
-          <div
-            key={key}
-            style={{
-              position: 'absolute',
-              left: screenX,
-              top: screenY,
-              width: TILE_SIZE,
-              height: TILE_SIZE,
-              background: '#050505',
-              border: '1px solid #0a0a0a',
-            }}
-          />
-        );
-        continue;
-      }
-
-      const tileColors = TILE_COLORS[tile.tile_type as TileType] || TILE_COLORS.street;
-      visibleTiles.push(
-        <TileRenderer
-          key={key}
-          tile={tile}
-          screenX={screenX}
-          screenY={screenY}
-          colors={tileColors}
-        />
-      );
-    }
-  }
+  // ── Calcula tiles OSM visíveis ──
+  const visibleTiles = getVisibleOsmTiles(
+    viewportX, viewportY, w, h,
+    originTileRef.current.x, originTileRef.current.y
+  );
 
   return (
     <div
       ref={canvasRef}
-      className="game-canvas"
-      style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}
-      onClick={handleCanvasClick}
+      style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#1a1a1a' }}
     >
-      {/* ── Tiles ── */}
-      {visibleTiles}
+      {/* ── Mapa Real OSM ── */}
+      {visibleTiles.map(({ tileX, tileY, worldX, worldY }) => {
+        const screenX = worldX - viewportX;
+        const screenY = worldY - viewportY;
+        return (
+          <img
+            key={`${tileX}-${tileY}`}
+            src={osmTileUrl(tileX, tileY)}
+            alt=""
+            draggable={false}
+            style={{
+              position: 'absolute',
+              left: screenX,
+              top: screenY,
+              width: GAME_TILE_PX,
+              height: GAME_TILE_PX,
+              imageRendering: 'auto',
+              // Aplica tint escuro de apocalipse em cima do mapa
+              filter: 'brightness(0.65) saturate(0.7) sepia(0.2)',
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          />
+        );
+      })}
+
+      {/* ── Overlay escuro de apocalipse ── */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'rgba(10, 5, 5, 0.25)',
+        pointerEvents: 'none',
+        mixBlendMode: 'multiply',
+      }} />
+
+      {/* ── Scanlines ── */}
+      <div className="scanlines" />
 
       {/* ── Items no mundo ── */}
       {useGameStore.getState().worldItems.map((item) => {
         const sx = item.pos_x - viewportX;
         const sy = item.pos_y - viewportY;
-        if (sx < -50 || sx > windowSize.w + 50 || sy < -50 || sy > windowSize.h + 50) return null;
+        if (sx < -60 || sx > w + 60 || sy < -60 || sy > h + 60) return null;
         return (
-          <div
-            key={item.id}
-            style={{
-              position: 'absolute',
-              left: sx - 12,
-              top: sy - 12,
-              width: 24,
-              height: 24,
-              background: 'rgba(0,0,0,0.7)',
-              border: `2px solid ${getRarityColor(item.rarity)}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 14,
-              animation: 'float 2s ease-in-out infinite',
-              boxShadow: `0 0 8px ${getRarityColor(item.rarity)}`,
-              zIndex: 50,
-              cursor: 'pointer',
-            }}
-          >
-            {getItemEmoji(item.item_id)}
+          <div key={item.id} style={{
+            position: 'absolute', left: sx - 14, top: sy - 14,
+            width: 28, height: 28,
+            background: 'rgba(0,0,0,0.85)',
+            border: `2px solid ${rarityColor(item.rarity)}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, borderRadius: 2,
+            animation: 'float 2s ease-in-out infinite',
+            boxShadow: `0 0 10px ${rarityColor(item.rarity)}66`,
+            zIndex: 50,
+          }}>
+            {itemEmoji(item.item_id)}
           </div>
         );
       })}
@@ -435,12 +439,20 @@ export default function GameCanvas() {
         if (!zombie.is_alive) return null;
         const sx = zombie.pos_x - viewportX;
         const sy = zombie.pos_y - viewportY;
-        if (sx < -100 || sx > windowSize.w + 100 || sy < -100 || sy > windowSize.h + 100) return null;
+        if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return null;
+        const isTarget = currentTarget === zombie.id;
         return (
-          <div
-            key={zombie.id}
-            style={{ position: 'absolute', left: sx - 16, top: sy - 44, zIndex: 80 }}
-          >
+          <div key={zombie.id} style={{ position: 'absolute', left: sx - 16, top: sy - 44, zIndex: 80 }}>
+            {/* Marcador de alvo */}
+            {isTarget && (
+              <div style={{
+                position: 'absolute', top: -12, left: 4,
+                width: 24, height: 12, textAlign: 'center',
+                fontSize: 9, color: '#dc2626',
+                fontFamily: "'Press Start 2P', monospace",
+                animation: 'pulse-red 0.5s ease-in-out infinite',
+              }}>▼</div>
+            )}
             <ZombieSprite
               zombieType={zombie.zombie_type as any}
               health={zombie.current_health}
@@ -454,229 +466,66 @@ export default function GameCanvas() {
         );
       })}
 
-      {/* ── Outros players online ── */}
+      {/* ── Outros jogadores online ── */}
       {onlinePlayers.map((op) => {
-        if (op.id === player.id) return null;
-        const opPx = op.tile_x * TILE_SIZE;
-        const opPy = op.tile_y * TILE_SIZE;
-        const sx = opPx - viewportX;
-        const sy = opPy - viewportY;
-        if (sx < -100 || sx > windowSize.w + 100 || sy < -100 || sy > windowSize.h + 100) return null;
+        if (op.id === player.id || !op.last_lat || !op.last_lng) return null;
+        const { pixelX: opX, pixelY: opY } = playerWorldPixelFromLatLng(op.last_lat, op.last_lng);
+        const sx = opX - viewportX;
+        const sy = opY - viewportY;
+        if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return null;
         return (
           <div key={op.id} style={{ position: 'absolute', left: sx - 16, top: sy - 44, zIndex: 90 }}>
             <PlayerSprite
-              skinColor={op.skin_color}
-              hairColor={op.hair_color}
-              shirtColor={op.shirt_color}
-              pantsColor={op.pants_color}
-              username={op.username}
-              showHealthBar={true}
-              health={op.current_health}
-              maxHealth={op.max_health}
-              scale={1}
-              isLocal={false}
+              skinColor={op.skin_color} hairColor={op.hair_color}
+              shirtColor={op.shirt_color} pantsColor={op.pants_color}
+              username={op.username} showHealthBar health={op.current_health}
+              maxHealth={op.max_health} scale={1} isLocal={false}
             />
           </div>
         );
       })}
 
       {/* ── Player local ── */}
-      <div
-        style={{
-          position: 'absolute',
-          left: playerPixelX - viewportX - 16,
-          top: playerPixelY - viewportY - 44,
-          zIndex: 100,
-        }}
-      >
+      <div style={{
+        position: 'absolute',
+        left: playerPixelX - viewportX - 16,
+        top: playerPixelY - viewportY - 44,
+        zIndex: 100,
+      }}>
         <PlayerSprite
-          skinColor={player.skin_color}
-          hairColor={player.hair_color}
-          shirtColor={player.shirt_color}
-          pantsColor={player.pants_color}
-          direction={playerDir}
-          isMoving={isMoving}
-          isAttacking={isAttacking}
-          health={player.current_health}
-          maxHealth={player.max_health}
-          showHealthBar={false}
-          scale={1}
-          isLocal={true}
-          username={player.username}
+          skinColor={player.skin_color} hairColor={player.hair_color}
+          shirtColor={player.shirt_color} pantsColor={player.pants_color}
+          direction={playerDir} isMoving={isMoving} isAttacking={isAttacking}
+          health={player.current_health} maxHealth={player.max_health}
+          showHealthBar={false} scale={1} isLocal username={player.username}
         />
       </div>
 
       {/* ── Damage Numbers ── */}
       {damageNumbers.map((dn) => (
-        <div
-          key={dn.id}
+        <div key={dn.id}
           className={`damage-number ${dn.isCrit ? 'crit' : dn.isHeal ? 'heal' : dn.damage === 0 ? 'miss' : 'normal'}`}
-          style={{ left: dn.x, top: dn.y }}
+          style={{ left: dn.x, top: dn.y, position: 'absolute', zIndex: 300 }}
         >
           {dn.damage === 0 ? 'MISS' : dn.isCrit ? `⚡${dn.damage}!` : dn.isHeal ? `+${dn.damage}` : dn.damage}
         </div>
       ))}
+
+      {/* ── Atribuição OSM (obrigatória por licença) ── */}
+      <div style={{
+        position: 'absolute', bottom: 24, right: 8, zIndex: 500,
+        fontSize: 9, color: 'rgba(255,255,255,0.35)',
+        fontFamily: 'Arial, sans-serif', pointerEvents: 'none',
+      }}>
+        © OpenStreetMap contributors
+      </div>
     </div>
   );
 }
 
-// ── Tile rendered individualmente ──
-function TileRenderer({ tile, screenX, screenY, colors }: any) {
-  const s = TILE_SIZE;
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: screenX,
-        top: screenY,
-        width: s,
-        height: s,
-        background: colors.base,
-        border: `1px solid ${colors.border}`,
-        imageRendering: 'pixelated',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Detalhes visuais do tipo de tile */}
-      {tile.tile_type === 'street' && <StreetDetails s={s} />}
-      {tile.tile_type === 'building' && <BuildingDetails s={s} />}
-      {tile.tile_type === 'forest' && <ForestDetails s={s} />}
-      {tile.tile_type === 'hospital' && <HospitalDetails s={s} />}
-      {tile.tile_type === 'military_base' && <MilitaryDetails s={s} />}
-      {tile.tile_type === 'river' && <RiverDetails s={s} />}
-      {tile.tile_type === 'ruins' && <RuinsDetails s={s} />}
-
-      {/* Indicador de loot */}
-      {tile.has_loot && !tile.loot_collected && (
-        <div style={{ position: 'absolute', top: 2, right: 2, width: 6, height: 6, background: '#f59e0b', borderRadius: '50%', boxShadow: '0 0 4px #f59e0b' }} />
-      )}
-    </div>
-  );
+function rarityColor(r: string) {
+  return ({ common: '#9ca3af', uncommon: '#22c55e', rare: '#3b82f6', epic: '#a855f7', legendary: '#f59e0b' } as any)[r] || '#9ca3af';
 }
-
-// Detalhes visuais dos tiles
-function StreetDetails({ s }: { s: number }) {
-  return (
-    <>
-      <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 2, background: '#444', transform: 'translateY(-50%)' }} />
-      <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 2, background: '#444', transform: 'translateX(-50%)' }} />
-      {/* Marcas da estrada */}
-      {[0, 1, 2].map(i => (
-        <div key={i} style={{ position: 'absolute', top: '50%', left: `${10 + i * 20}%`, width: 8, height: 2, background: '#555', transform: 'translateY(-50%)' }} />
-      ))}
-    </>
-  );
-}
-
-function BuildingDetails({ s }: { s: number }) {
-  return (
-    <>
-      {/* Janelas */}
-      {[[10, 10], [35, 10], [10, 35], [35, 35]].map(([x, y], i) => (
-        <div key={i} style={{ position: 'absolute', top: y, left: x, width: 12, height: 10, background: 'rgba(100,150,200,0.15)', border: '1px solid rgba(100,150,200,0.2)' }}>
-          <div style={{ position: 'absolute', top: 0, left: '50%', bottom: 0, width: 1, background: 'rgba(255,255,255,0.05)' }} />
-          <div style={{ position: 'absolute', left: 0, top: '50%', right: 0, height: 1, background: 'rgba(255,255,255,0.05)' }} />
-        </div>
-      ))}
-      {/* Porta */}
-      <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 10, height: 14, background: '#0d1520', border: '1px solid #1a2a35' }} />
-    </>
-  );
-}
-
-function ForestDetails({ s }: { s: number }) {
-  return (
-    <>
-      {/* Árvores pixeladas */}
-      {[[8, 8], [32, 15], [16, 38], [44, 30], [28, 4]].map(([x, y], i) => (
-        <div key={i} style={{ position: 'absolute', top: y, left: x }}>
-          {/* Tronco */}
-          <div style={{ position: 'absolute', bottom: 0, left: 3, width: 4, height: 6, background: '#5c3d2e' }} />
-          {/* Copa */}
-          <div style={{ width: 10, height: 10, background: '#1a4a1a', border: '1px solid #0d2b0d' }} />
-          <div style={{ position: 'absolute', top: -3, left: 2, width: 6, height: 6, background: '#1a5a1a' }} />
-        </div>
-      ))}
-    </>
-  );
-}
-
-function HospitalDetails({ s }: { s: number }) {
-  return (
-    <>
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 20, height: 4, background: 'rgba(255,255,255,0.15)' }} />
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 4, height: 20, background: 'rgba(255,255,255,0.15)' }} />
-      {/* Janelas com tint verde */}
-      {[[8, 8], [40, 8], [8, 38], [40, 38]].map(([x, y], i) => (
-        <div key={i} style={{ position: 'absolute', top: y, left: x, width: 10, height: 10, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }} />
-      ))}
-    </>
-  );
-}
-
-function MilitaryDetails({ s }: { s: number }) {
-  return (
-    <>
-      {/* Grade/Cerca */}
-      {[0, 1, 2, 3, 4].map(i => (
-        <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${i * 20}%`, width: 2, background: 'rgba(100,120,100,0.3)' }} />
-      ))}
-      {/* Barracão */}
-      <div style={{ position: 'absolute', top: 10, left: 10, width: 30, height: 25, background: '#1a2a1a', border: '1px solid #3a5a3a' }} />
-      {/* Estrela militar */}
-      <div style={{ position: 'absolute', top: 15, left: 18, fontSize: 12, color: 'rgba(100,140,100,0.5)' }}>★</div>
-    </>
-  );
-}
-
-function RiverDetails({ s }: { s: number }) {
-  return (
-    <>
-      {/* Ondas de água */}
-      {[0, 1, 2].map(i => (
-        <div key={i} style={{
-          position: 'absolute',
-          top: `${20 + i * 15}%`,
-          left: 0, right: 0, height: 3,
-          background: 'rgba(59,130,246,0.2)',
-          borderRadius: 2,
-        }} />
-      ))}
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(30,58,138,0.15)' }} />
-    </>
-  );
-}
-
-function RuinsDetails({ s }: { s: number }) {
-  return (
-    <>
-      {/* Escombros */}
-      {[[5, 5, 20, 15], [30, 20, 15, 20], [10, 35, 25, 12]].map(([x, y, w, h], i) => (
-        <div key={i} style={{ position: 'absolute', top: y, left: x, width: w, height: h, background: 'rgba(80,60,40,0.4)', border: '1px solid rgba(100,80,60,0.3)' }} />
-      ))}
-      {/* Rachaduras */}
-      <div style={{ position: 'absolute', top: 0, left: '30%', width: 1, height: '60%', background: 'rgba(0,0,0,0.3)', transform: 'rotate(5deg)' }} />
-    </>
-  );
-}
-
-// ── Helpers ──
-function getRarityColor(rarity: string): string {
-  const colors: Record<string, string> = {
-    common: '#9ca3af', uncommon: '#22c55e', rare: '#3b82f6', epic: '#a855f7', legendary: '#f59e0b',
-  };
-  return colors[rarity] || '#9ca3af';
-}
-
-function getItemEmoji(id: string): string {
-  const emojis: Record<string, string> = {
-    pistol: '🔫', shotgun: '🔫', rifle: '🔫', sniper: '🔭',
-    knife: '🔪', machete: '🗡️', bat: '⚾',
-    bandage: '🩹', medkit: '🧰', pain_meds: '💊', morphine: '💉',
-    canned_food: '🥫', water_bottle: '💧', energy_bar: '🍫',
-    ammo_9mm: '🔶', ammo_shotgun: '🔶', ammo_rifle: '🔷',
-    silencer: '🔇', extended_mag: '📦', scope: '🔭', grip: '🖐️',
-    scrap_metal: '🔩', cloth: '🧵',
-  };
-  return emojis[id] || '📦';
+function itemEmoji(id: string) {
+  return ({ pistol: '🔫', shotgun: '🔫', rifle: '🔫', knife: '🔪', machete: '🗡️', bat: '⚾', bandage: '🩹', medkit: '🧰', pain_meds: '💊', canned_food: '🥫', water_bottle: '💧', ammo_9mm: '🔶', ammo_shotgun: '🔶', ammo_rifle: '🔷' } as any)[id] || '📦';
 }
