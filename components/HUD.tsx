@@ -26,6 +26,15 @@ export default function HUD() {
     router.replace('/');
   };
 
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 768);
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <>
       {/* ── TOP LEFT: Stats do player ── */}
@@ -78,10 +87,7 @@ export default function HUD() {
 
           {/* XP */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <span style={{ fontSize: 8, color: '#8b5cf6', fontFamily: "'Press Start 2P', monospace" }}>XP</span>
-              <span style={{ fontSize: 8, color: '#8b5cf6', fontFamily: "'Share Tech Mono', monospace" }}>{player.xp}/{player.xp_to_next}</span>
-            </div>
+            <div className="pixel-font" style={{ fontSize: 7, color: '#666', marginBottom: 2 }}>XP</div>
             <div className="bar-container">
               <div
                 className="bar-fill bar-xp"
@@ -165,14 +171,14 @@ export default function HUD() {
                 className="flex flex-col items-center gap-1 hover:bg-red-900 transition-colors"
                 style={{ 
                   border: '1px solid #333', 
-                  minWidth: window.innerWidth < 768 ? 48 : 40,
-                  padding: window.innerWidth < 768 ? '10px 8px' : '6px 4px', 
+                  minWidth: isMobile ? 48 : 40,
+                  padding: isMobile ? '10px 8px' : '6px 4px', 
                   background: 'transparent', 
                   cursor: 'pointer' 
                 }}
                 title={label}
               >
-                <span style={{ fontSize: window.innerWidth < 768 ? 20 : 16 }}>{icon}</span>
+                <span style={{ fontSize: isMobile ? 20 : 16 }}>{icon}</span>
                 <span style={{ fontSize: 6, color: '#555', fontFamily: "'Share Tech Mono', monospace" }}>[{key}]</span>
               </button>
             ))}

@@ -196,171 +196,105 @@ export default function LandingPage() {
       <BloodSplat style={{ width: 150, height: 90, bottom: '15%', right: '3%' }} />
       <BloodSplat style={{ width: 80, height: 50, top: '30%', right: '8%' }} />
       
-      {/* ─── Fundo: Mapa Global ─── */}
-      <div className="absolute inset-0 opacity-60" style={{ zIndex: -1, pointerEvents: 'none' }}>
-        <WorldMap />
-      </div>
+      {/* ─── Layout Principal: Split Screen ─── */}
+      <div className="relative z-10 min-h-screen flex flex-col md:flex-row overflow-hidden">
+        
+        {/* LADO ESQUERDO: Mapa Global Vivo */}
+        <div className="relative flex-1 bg-black border-r border-[#8b000033] hidden md:block">
+           <div className="absolute inset-0 opacity-80">
+              <WorldMap isBackground={true} />
+           </div>
+           
+           {/* Overlay do Mapa */}
+           <div className="absolute top-6 left-6 retro-panel p-3" style={{ background: 'rgba(0,0,0,0.8)' }}>
+             <div className="pixel-font text-red-600 mb-1" style={{ fontSize: 9 }}>STATUS GLOBAL</div>
+             <div style={{ fontSize: 7, color: '#aaa' }}>Monitorando atividade de sobreviventes...</div>
+           </div>
 
-      {/* ─── Vinheta ─── */}
-      <div className="vignette" />
-
-      {/* ─── Personagens decorativos ─── */}
-      {/* Zumbi esquerda */}
-      <div
-        className="absolute animate-zombie-walk"
-        style={{ bottom: '12%', left: '8%', opacity: 0.7, transform: 'scale(2)', transformOrigin: 'bottom center' }}
-      >
-        <RetroZombie />
-      </div>
-      {/* Zumbi direita */}
-      <div
-        className="absolute animate-zombie-walk"
-        style={{ bottom: '18%', right: '10%', opacity: 0.6, transform: 'scale(2.5) scaleX(-1)', transformOrigin: 'bottom center', animationDelay: '0.25s' }}
-      >
-        <RetroZombie />
-      </div>
-      {/* Personagem herói */}
-      <div
-        className="absolute animate-float"
-        style={{ bottom: '14%', left: '50%', transform: 'translateX(-50%) scale(3)', transformOrigin: 'bottom center', opacity: 0.9 }}
-      >
-        <RetroCharacter />
-      </div>
-
-      {/* ─── Conteúdo principal ─── */}
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4">
-        {/* Logo / Título */}
-        <div className="text-center mb-12">
-          {/* DEAD */}
-          <div
-            className="pixel-font text-red-600 block select-none"
-            style={{
-              fontSize: 'clamp(36px, 8vw, 80px)',
-              lineHeight: 1,
-              textShadow: '4px 4px 0 #5a0000, 0 0 40px rgba(200,0,0,0.6), 0 0 80px rgba(200,0,0,0.3)',
-              letterSpacing: '0.06em',
-              marginBottom: 4,
-            }}
-          >
-            DEAD
-          </div>
-          {/* WORLD */}
-          <div
-            className="pixel-font block select-none"
-            style={{
-              fontSize: 'clamp(28px, 6vw, 60px)',
-              lineHeight: 1,
-              color: '#e5e5e5',
-              textShadow: '3px 3px 0 #333, 0 0 20px rgba(255,255,255,0.1)',
-              letterSpacing: '0.12em',
-            }}
-          >
-            WORLD
-          </div>
-
-          {/* Subtítulo */}
-          <div
-            className="mt-6 text-xs tracking-widest uppercase"
-            style={{ color: '#666', fontFamily: "'Share Tech Mono', monospace" }}
-          >
-            — Sobreviva. Explore. Domine. —
-          </div>
+           {/* Pulse de atividade no fundo */}
+           <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, transparent 0%, rgba(139,0,0,0.05) 100%)' }} />
         </div>
 
-        {/* ─── Painel de Login ─── */}
-        <div
-          className="retro-panel p-8 w-full"
-          style={{ maxWidth: 420, position: 'relative' }}
-        >
-          {/* Header do painel */}
-          <div className="pixel-font text-center mb-6 text-red-500" style={{ fontSize: 10 }}>
-            {'>'} TERMINAL DE ACESSO {blink ? '_' : ' '}
-          </div>
+        {/* LADO DIREITO: Terminal de Acesso */}
+        <div className="w-full md:w-[460px] flex flex-col items-center justify-center p-6 md:p-12 relative overflow-y-auto bg-black">
+          {/* CRT Noise Overlay for right side */}
+          <div className="absolute inset-0 pointer-events-none opacity-[0.03]" 
+               style={{ backgroundImage: 'url("https://grainy-gradients.vercel.app/noise.svg")', filter: 'contrast(150%) brightness(150%)' }} />
 
-          {/* Features */}
-          <div className="space-y-2 mb-6 text-xs" style={{ color: '#666' }}>
-            {[
-              ['🌍', 'Mapa gerado da sua cidade real'],
-              ['🧟', 'Zumbis online com outros jogadores'],
-              ['🔫', 'Armas customizáveis e upgrades'],
-              ['🏆', 'Ranking global em tempo real'],
-              ['🎮', 'Sessão compartilhada — 1 mundo'],
-            ].map(([icon, text]) => (
-              <div key={text} className="flex items-center gap-3 py-1">
-                <span style={{ fontSize: 14 }}>{icon}</span>
-                <span style={{ color: '#aaa' }}>{text}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Separador */}
-          <div className="mb-6" style={{ height: 1, background: 'linear-gradient(90deg, transparent, #8b0000, transparent)' }} />
-
-          {/* Botão Google */}
-          <button
-            onClick={handleLogin}
-            disabled={signing}
-            className="w-full flex items-center justify-center gap-3 px-6 py-4 text-sm font-medium transition-all duration-200 relative overflow-hidden group"
-            style={{
-              background: signing ? '#1a1a1a' : '#0d0d0d',
-              border: '2px solid',
-              borderColor: signing ? '#333' : '#cc0000',
-              color: signing ? '#666' : '#fff',
-              fontFamily: "'Press Start 2P', monospace",
-              fontSize: 9,
-              letterSpacing: '0.05em',
-              cursor: signing ? 'not-allowed' : 'pointer',
-              boxShadow: signing ? 'none' : '0 0 20px rgba(204,0,0,0.3), inset 0 0 20px rgba(204,0,0,0.05)',
-            }}
-          >
-            {/* Hover effect */}
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ background: 'linear-gradient(135deg, transparent 40%, rgba(139,0,0,0.15) 100%)' }}
-            />
-
-            {signing ? (
-              <>
-                <div
-                  className="animate-spin"
-                  style={{ width: 16, height: 16, border: '2px solid #333', borderTopColor: '#cc0000', borderRadius: '50%' }}
-                />
-                <span>CONECTANDO...</span>
-              </>
-            ) : (
-              <>
-                {/* Google Icon */}
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                </svg>
-                <span>ENTRAR COM GOOGLE</span>
-              </>
-            )}
-          </button>
-
-          {/* Footer info */}
-          <div className="mt-4 text-center text-xs" style={{ color: '#444', fontFamily: "'Share Tech Mono', monospace" }}>
-            Ao entrar, você concorda em sobreviver.
-            <br />
-            <span style={{ color: '#333' }}>v{VERSION} — Alpha</span>
-          </div>
-        </div>
-
-
-        {/* Stats globais reais */}
-        <div className="mt-6 flex gap-8 text-center flex-wrap justify-center">
-          {[
-            { label: 'Zumbis Mortos', value: globalStats.zombies > 0 ? globalStats.zombies.toLocaleString() : '---' },
-            { label: 'Tiles Explorados', value: globalStats.tiles > 0 ? globalStats.tiles.toLocaleString() : '---' },
-            { label: 'Online Agora', value: globalStats.players > 0 ? globalStats.players.toString() : '0' },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <div className="pixel-font text-red-500" style={{ fontSize: 14 }}>{value}</div>
-              <div style={{ fontSize: 9, color: '#444', marginTop: 4, fontFamily: "'Share Tech Mono', monospace" }}>{label}</div>
+          {/* Logo / Título */}
+          <div className="text-center mb-12">
+            <div className="pixel-font text-red-600 block select-none"
+              style={{
+                fontSize: '48px',
+                lineHeight: 1,
+                textShadow: '4px 4px 0 #5a0000, 0 0 40px rgba(200,0,0,0.6)',
+                letterSpacing: '0.06em',
+                marginBottom: 4,
+              }}
+            >DEAD</div>
+            <div className="pixel-font block select-none"
+              style={{
+                fontSize: '36px',
+                lineHeight: 1,
+                color: '#e5e5e5',
+                textShadow: '3px 3px 0 #333',
+                letterSpacing: '0.12em',
+              }}
+            >WORLD</div>
+            <div className="mt-4 text-[10px] tracking-widest uppercase text-[#444]">
+              v{VERSION} — Online Survivors
             </div>
-          ))}
+          </div>
+
+          {/* Stats Rápidos (Online agora) */}
+          <div className="flex gap-4 mb-8 w-full">
+            <div className="flex-1 retro-panel p-3 text-center border-[#39ff1433]">
+              <div className="text-[#39ff14] pixel-font mb-1" style={{ fontSize: 16 }}>{globalStats.players}</div>
+              <div style={{ fontSize: 7, color: '#444' }}>ONLINE AGORA</div>
+            </div>
+            <div className="flex-1 retro-panel p-3 text-center">
+              <div className="text-red-600 pixel-font mb-1" style={{ fontSize: 16 }}>{globalStats.zombies.toLocaleString()}</div>
+              <div style={{ fontSize: 7, color: '#444' }}>ZUMBIS ABATIDOS</div>
+            </div>
+          </div>
+
+          {/* Terminal de Login */}
+          <div className="retro-panel p-8 w-full mb-8" style={{ position: 'relative' }}>
+            <div className="pixel-font text-center mb-6 text-red-500" style={{ fontSize: 9 }}>
+              {'>'} LOGIN_TERMINAL {blink ? '_' : ' '}
+            </div>
+
+            <div className="space-y-3 mb-8 text-[10px]" style={{ color: '#aaa' }}>
+              <div className="flex items-center gap-3"><span className="text-[#39ff14]">✔</span> Protocolo de Mapa Ativo</div>
+              <div className="flex items-center gap-3"><span className="text-[#39ff14]">✔</span> Sincronização de Sobreviventes</div>
+              <div className="flex items-center gap-3"><span className="text-[#39ff14]">✔</span> Inventário Persistente</div>
+            </div>
+
+            <button
+              onClick={handleLogin}
+              disabled={signing}
+              className="w-full flex items-center justify-center gap-3 px-6 py-4 text-sm font-medium transition-all duration-200 relative overflow-hidden group"
+              style={{
+                background: signing ? '#1a1a1a' : '#0d0d0d',
+                border: '2px solid',
+                borderColor: signing ? '#333' : '#cc0000',
+                color: signing ? '#666' : '#fff',
+                fontFamily: "'Press Start 2P', monospace",
+                fontSize: 9,
+                letterSpacing: '0.05em',
+                cursor: signing ? 'not-allowed' : 'pointer',
+                boxShadow: signing ? 'none' : '0 0 20px rgba(204,0,0,0.3)',
+              }}
+            >
+              {signing ? 'CONECTANDO...' : 'ENTRAR COM GOOGLE'}
+            </button>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center space-y-2">
+            <div style={{ fontSize: 8, color: '#333' }}>© {new Date().getFullYear()} DEAD WORLD PROJECT</div>
+            <div style={{ fontSize: 7, color: '#222' }}>DADO REALIZADO ATRAVÉS DE SATELLITE (OSM)</div>
+          </div>
         </div>
       </div>
     </div>

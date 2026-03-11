@@ -12,7 +12,13 @@ const PANTS_COLORS = ['#2d2d44', '#1a2e1a', '#2e1a1a', '#1f1f1f', '#2a3a2a', '#3
 import { parseCustomCSS } from '@/lib/cssParser';
 
 export default function CharacterCustomizer() {
-  const { showCharCustomizer, toggleCharCustomizer, player, updatePlayerStats } = useGameStore();
+  const { 
+    showCharCustomizer, 
+    toggleCharCustomizer, 
+    player, 
+    updatePlayerStats,
+    addNotification 
+  } = useGameStore();
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'design' | 'css'>('profile');
@@ -73,7 +79,6 @@ export default function CharacterCustomizer() {
     setSaving(false);
   };
   
-  const { addNotification } = useGameStore();
 
   const handleConfirmPayment = async () => {
     if (!window.confirm("Você confirma que já realizou o pagamento via PIX?")) return;
