@@ -16,7 +16,7 @@ export default function GameCanvas() {
   const {
     player, updatePlayerStats,
     tiles, setTile,
-    zombies, setZombie, removeZombie, addZombie,
+    zombies, setZombie, removeZombie,
     worldItems, removeWorldItem,
     addInventoryItem, inventory,
     onlinePlayers,
@@ -133,7 +133,7 @@ export default function GameCanvas() {
             originTileRef.current.x, originTileRef.current.y,
             avgLevel
           );
-          addZombie(newZombie as any);
+          setZombie(newZombie as any);
         }
       }
       scheduleSpawn();

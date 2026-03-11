@@ -271,7 +271,7 @@ export default function GamePage() {
       }
       if (newZombies.length > 0) {
         // Zumbis já são gerenciados pelo Map<string, Zombie> no store (setZombie/addZombie)
-        newZombies.forEach(z => state.addZombie(z));
+        newZombies.forEach(z => state.setZombie(z));
       }
     }
   };
