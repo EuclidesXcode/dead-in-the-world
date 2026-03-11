@@ -11,6 +11,25 @@ import PlayerSprite from './PlayerSprite';
 import ZombieSprite from './ZombieSprite';
 import StreetMap from './StreetMap';
 
+// ── Funcao global de checagem física SVG (não depende de viewport) ──
+const isPointOnWalkableRoad = (worldX: number, worldY: number) => {
+  const svg = document.getElementById('street-map-svg') as any as SVGSVGElement;
+  if (!svg) return true; // Se mapa não renderizou, não bloqueia
+  const pt = svg.createSVGPoint();
+  pt.x = worldX;
+  pt.y = worldY;
+  const roads = document.querySelectorAll('.walkable-road');
+  for (let i = 0; i < roads.length; i++) {
+    const el = roads[i] as any;
+    if (el.tagName === 'polygon') {
+      if (el.isPointInFill(pt)) return true;
+    } else if (el.tagName === 'path') {
+      if (el.isPointInStroke(pt)) return true;
+    }
+  }
+  return false;
+};
+
 
 
 export default function GameCanvas() {
@@ -302,33 +321,19 @@ export default function GameCanvas() {
         let stepX = (dx / len) * speed * dt;
         let stepY = (dy / len) * speed * dt;
 
-        // Collision Check: testa elemento no centro-baixo do player (seus "pés")
-        // Os próximos pés estariam visualmente parados no centro (h/2 + offset) se a camera fosse solta.
-        // Como a camera segue o player, "andar" significa que o mapa anda CORTRA o player.
-        // Simulamos a colisão testando qual elemento DOM está sob o centro da tela se testássemos o próximo tick.
-        // Uma forma fluída de testar é verificar o SVG renderizado em w/2, h/2 + 20 antes de applyStep.
-        
-        // Simples test: The player is always fixed at w/2, h/2. The map is drawn underneath.
-        // Test elements at (w/2, h/2 + 15) to hit the walkable-road.
-        const centerEls = document.elementsFromPoint(w/2, h/2 + 10);
-        const onRoad = centerEls.some(el => el.classList.contains('walkable-road') || el.classList.contains('vignette'));
-        // (Nota: como o mapa tem SVG e a vignette no meio, melhor adicionar vignette na conta e usar uma logica mais macia se precisar)
-        // Actually, um culling preciso seria melhor apenas com as bounds em JS, mas vamos com a approach visual:
-        // A gente não "trava" o player instantaneamente no elementFromPoint porque o mapa move DEPOIS do calculo.
-        // Vamos testar as bordas de restrição de movimento.
+        // Collision Check: SVG Natively with isPointOnWalkableRoad
         let moveAllowed = true;
-        if (!process.env.NEXT_PUBLIC_IGNORE_COLLISION) { // flag secreta
-           const projectedEls = document.elementsFromPoint(w/2 + stepX, h/2 + stepY + 10);
-           moveAllowed = projectedEls.some(el => el.classList.contains('walkable-road'));
+        if (!process.env.NEXT_PUBLIC_IGNORE_COLLISION) {
+           const pxBase = playerPosRef.current.x;
+           const pyBase = playerPosRef.current.y;
+           const targetX = pxBase + stepX;
+           const targetY = pyBase + stepY + 10;
            
-           // Permit block if not on road, but allow sliding along walls if one axis works
+           moveAllowed = isPointOnWalkableRoad(targetX, targetY);
+           
            if (!moveAllowed) {
-              const testX = document.elementsFromPoint(w/2 + stepX, h/2 + 10);
-              if (testX.some(el => el.classList.contains('walkable-road'))) { stepY = 0; moveAllowed = true; }
-              else {
-                 const testY = document.elementsFromPoint(w/2, h/2 + stepY + 10);
-                 if (testY.some(el => el.classList.contains('walkable-road'))) { stepX = 0; moveAllowed = true; }
-              }
+              if (isPointOnWalkableRoad(targetX, pyBase + 10)) { stepY = 0; moveAllowed = true; }
+              else if (isPointOnWalkableRoad(pxBase, targetY)) { stepX = 0; moveAllowed = true; }
            }
         }
 
@@ -434,29 +439,19 @@ export default function GameCanvas() {
           let stepY = ddy * spd;
 
           if (!process.env.NEXT_PUBLIC_IGNORE_COLLISION) {
-            const vpX = state.viewportX;
-            const vpY = state.viewportY;
-            const zScreenX = zombie.pos_x + stepX - vpX;
-            const zScreenY = zombie.pos_y + stepY - vpY;
+            const targetX = zombie.pos_x + stepX;
+            const targetY = zombie.pos_y + stepY + 15;
 
-            // Só testa colisão visual se o zumbi estiver na tela
-            if (zScreenX >= 0 && zScreenX <= window.innerWidth && zScreenY >= 0 && zScreenY <= window.innerHeight) {
-              const centerEls = document.elementsFromPoint(zScreenX, zScreenY + 15);
-              let moveAllowed = centerEls.some(el => el.classList.contains('walkable-road'));
+            let moveAllowed = isPointOnWalkableRoad(targetX, targetY);
 
-              if (!moveAllowed) {
-                const testX = document.elementsFromPoint(zombie.pos_x + stepX - vpX, zombie.pos_y - vpY + 15);
-                if (testX.some(el => el.classList.contains('walkable-road'))) { stepY = 0; moveAllowed = true; }
-                else {
-                  const testY = document.elementsFromPoint(zombie.pos_x - vpX, zombie.pos_y + stepY - vpY + 15);
-                  if (testY.some(el => el.classList.contains('walkable-road'))) { stepX = 0; moveAllowed = true; }
-                }
-              }
+            if (!moveAllowed) {
+              if (isPointOnWalkableRoad(targetX, zombie.pos_y + 15)) { stepY = 0; moveAllowed = true; }
+              else if (isPointOnWalkableRoad(zombie.pos_x, targetY)) { stepX = 0; moveAllowed = true; }
+            }
 
-              if (!moveAllowed) {
-                stepX = 0;
-                stepY = 0;
-              }
+            if (!moveAllowed) {
+              stepX = 0;
+              stepY = 0;
             }
           }
 

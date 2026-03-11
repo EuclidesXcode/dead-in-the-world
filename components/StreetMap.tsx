@@ -257,6 +257,7 @@ export default function StreetMap({
 
       {/* ── SVG Principal ── */}
       <svg
+        id="street-map-svg"
         style={{ position: 'absolute', left: -buffer, top: -buffer, width: svgViewW, height: svgViewH, overflow: 'visible' }}
         viewBox={`${svgViewX} ${svgViewY} ${svgViewW} ${svgViewH}`}
       >
