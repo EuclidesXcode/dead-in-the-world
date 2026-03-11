@@ -281,6 +281,7 @@ export default function GameCanvas() {
     addInventoryItem(invItem);
     supabase.from('inventory').insert(invItem).then();
     addNotification(`Coletou: ${item.item_name}`, 'info');
+    updatePlayerStats({ items_collected: (state.player?.items_collected || 0) + 1 });
     if (item.item_type === 'weapon' && !state.equippedWeapon) {
       setEquippedWeapon({ ...invItem, equipped: true });
     }

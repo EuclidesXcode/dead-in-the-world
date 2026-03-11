@@ -137,7 +137,7 @@ export default function HUD() {
             {[
               { key: 'I', label: 'INVENTÁRIO', icon: '🎒', action: toggleInventory },
               { key: 'M', label: 'MAPA', icon: '🗺️', action: toggleMap },
-              { key: 'C', label: 'PERSONAGEM', icon: '👤', action: toggleCharCustomizer },
+              { key: 'C', label: 'PERFIL', icon: '👤', action: toggleCharCustomizer },
               { key: 'U', label: 'UPGRADE', icon: '🔫', action: toggleWeaponUpgrade },
               { key: 'T', label: 'CHAT', icon: '💬', action: toggleChat },
               { key: 'L', label: 'RANKING', icon: '🏆', action: toggleLeaderboard },

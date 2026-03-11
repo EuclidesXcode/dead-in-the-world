@@ -14,19 +14,32 @@ import { parseCustomCSS } from '@/lib/cssParser';
 export default function CharacterCustomizer() {
   const { showCharCustomizer, toggleCharCustomizer, player, updatePlayerStats } = useGameStore();
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'design' | 'css'>('design');
-
-  if (!showCharCustomizer || !player) return null;
-
+  const [activeTab, setActiveTab] = useState<'profile' | 'design' | 'css'>('profile');
+  
   const [preview, setPreview] = useState({
-    skin_color: player.skin_color,
-    hair_color: player.hair_color,
-    shirt_color: player.shirt_color,
-    pants_color: player.pants_color,
-    custom_css: player.custom_css || '',
+    skin_color: player?.skin_color || '#FFDBAC',
+    hair_color: player?.hair_color || '#3D2B1F',
+    shirt_color: player?.shirt_color || '#1a1a2e',
+    pants_color: player?.pants_color || '#2d2d44',
+    custom_css: player?.custom_css || '',
   });
 
+  // Sync state when player changes (e.g. initial load or externally)
+  React.useEffect(() => {
+    if (player && showCharCustomizer) {
+      setPreview({
+        skin_color: player.skin_color,
+        hair_color: player.hair_color,
+        shirt_color: player.shirt_color,
+        pants_color: player.pants_color,
+        custom_css: player.custom_css || '',
+      });
+    }
+  }, [player?.id, showCharCustomizer]);
+
   const parsedStyles = React.useMemo(() => parseCustomCSS(preview.custom_css), [preview.custom_css]);
+
+  if (!showCharCustomizer || !player) return null;
 
   const handleSave = async () => {
     setSaving(true);
@@ -43,8 +56,11 @@ export default function CharacterCustomizer() {
         .update(data)
         .eq('id', player.id);
       updatePlayerStats(data);
+      // addNotification('Perfil atualizado!', 'success'); // Optional, toggle modal is enough
       toggleCharCustomizer();
-    } catch { }
+    } catch (err) {
+      console.error('Save error:', err);
+    }
     setSaving(false);
   };
 
@@ -73,8 +89,13 @@ export default function CharacterCustomizer() {
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: '#8b0000' }}>
-          <div className="pixel-font text-white" style={{ fontSize: 11 }}>👤 PERSONALIZAR PERSONAGEM</div>
+          <div className="pixel-font text-white" style={{ fontSize: 11 }}>👤 PERFIL DO SOBREVIVENTE</div>
           <div style={{ display: 'flex', gap: 4 }}>
+            <button 
+              className={`btn-retro ${activeTab === 'profile' ? 'btn-retro-yellow' : ''}`} 
+              onClick={() => setActiveTab('profile')} 
+              style={{ padding: '4px 8px', fontSize: 8 }}
+            >RESUMO</button>
             <button 
               className={`btn-retro ${activeTab === 'design' ? 'btn-retro-yellow' : ''}`} 
               onClick={() => setActiveTab('design')} 
@@ -117,7 +138,7 @@ export default function CharacterCustomizer() {
 
             {/* Stats do player */}
             <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: 12, width: '100%' }}>
-              <div className="pixel-font text-center mb-2" style={{ fontSize: 7, color: '#666' }}>STATS</div>
+              <div className="pixel-font text-center mb-2" style={{ fontSize: 7, color: '#666' }}>ATRIBUTOS</div>
               {[
                 { label: 'FORÇA', value: player.strength, max: 20, color: '#dc2626' },
                 { label: 'AGIL', value: player.agility, max: 20, color: '#3b82f6' },
@@ -136,16 +157,44 @@ export default function CharacterCustomizer() {
             </div>
           </div>
 
-          {/* Opções de personalização */}
+          {/* Opções de personalização / Perfil */}
           <div style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#0a0a0a' }}>
-            {activeTab === 'design' ? (
+            {activeTab === 'profile' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div className="pixel-font" style={{ fontSize: 10, color: '#f59e0b', borderBottom: '1px solid #333', paddingBottom: 8 }}>ESTATÍSTICAS DE SOBREVIVÊNCIA</div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                   <StatCard label="NÍVEL ATUAL" value={player.level} color="#f59e0b" />
+                   <StatCard label="ZUMBIS MORTOS" value={player.kills} color="#dc2626" />
+                   <StatCard label="ÁREAS EXPLORADAS" value={player.tiles_explored} color="#3b82f6" />
+                   <StatCard label="ITENS COLETADOS" value={player.items_collected || 0} color="#39ff14" />
+                   <StatCard label="MORTES" value={player.deaths || 0} color="#666" />
+                   <StatCard label="XP TOTAL" value={player.xp} color="#8b5cf6" />
+                </div>
+
+                <div className="pixel-font" style={{ fontSize: 9, color: '#666', marginTop: 10 }}>PROGRESSO DE NÍVEL</div>
+                <div style={{ background: '#111', padding: 12, border: '1px solid #222' }}>
+                   <div className="flex justify-between mb-2" style={{ fontSize: 8, fontFamily: 'monospace', color: '#8b5cf6' }}>
+                     <span>XP ATUAL: {player.xp}</span>
+                     <span>PRÓXIMO: {player.xp_to_next}</span>
+                   </div>
+                   <div className="bar-container" style={{ height: 10 }}>
+                     <div style={{ width: `${(player.xp / player.xp_to_next) * 100}%`, height: '100%', background: '#8b5cf6' }} />
+                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'design' && (
               <>
                 <ColorSection title="TOM DE PELE" colors={SKIN_COLORS} selected={preview.skin_color} onSelect={(c) => setPreview(p => ({ ...p, skin_color: c }))} />
                 <ColorSection title="COR DO CABELO" colors={HAIR_COLORS} selected={preview.hair_color} onSelect={(c) => setPreview(p => ({ ...p, hair_color: c }))} />
                 <ColorSection title="COR DA CAMISA" colors={SHIRT_COLORS} selected={preview.shirt_color} onSelect={(c) => setPreview(p => ({ ...p, shirt_color: c }))} />
                 <ColorSection title="COR DA CALÇA" colors={PANTS_COLORS} selected={preview.pants_color} onSelect={(c) => setPreview(p => ({ ...p, pants_color: c }))} />
               </>
-            ) : (
+            )}
+
+            {activeTab === 'css' && (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div className="pixel-font mb-2" style={{ fontSize: 8, color: '#39ff14' }}>EDITOR CSS DO PERSONAGEM</div>
                 <div style={{ fontSize: 7, color: '#666', marginBottom: 8, fontFamily: 'monospace' }}>
@@ -157,7 +206,7 @@ export default function CharacterCustomizer() {
                   placeholder={defaultCSSTemplate}
                   style={{
                     flex: 1,
-                    minHeight: 300,
+                    minHeight: 260,
                     background: '#000',
                     color: '#39ff14',
                     border: '1px solid #222',
@@ -180,17 +229,26 @@ export default function CharacterCustomizer() {
 
         {/* Footer */}
         <div className="flex justify-end gap-3 p-4 border-t" style={{ borderColor: '#222' }}>
-          <button className="btn-retro btn-retro-red" onClick={toggleCharCustomizer} style={{ fontSize: 9, padding: '8px 16px' }}>CANCELAR</button>
+          <button className="btn-retro btn-retro-red" onClick={toggleCharCustomizer} style={{ fontSize: 9, padding: '8px 16px' }}>FECHAR</button>
           <button
             className="btn-retro btn-retro-green"
             onClick={handleSave}
             disabled={saving}
             style={{ fontSize: 9, padding: '8px 16px' }}
           >
-            {saving ? 'SALVANDO...' : 'SALVAR'}
+            {saving ? 'SALVANDO...' : 'SALVAR ALTERAÇÕES'}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, color }: { label: string; value: any; color: string }) {
+  return (
+    <div style={{ background: '#080808', border: '1px solid #1a1a1a', padding: '10px 8px', textAlign: 'center' }}>
+      <div style={{ fontSize: 6, color: '#555', fontFamily: "'Press Start 2P', monospace", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 14, color, fontFamily: "'Share Tech Mono', monospace", fontWeight: 'bold' }}>{value}</div>
     </div>
   );
 }
