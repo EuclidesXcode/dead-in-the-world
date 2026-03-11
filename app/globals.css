@@ -1,0 +1,448 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ================================================
+   DEADWORLD — CSS Global
+   Estilo Retro Pixel Art Apocalíptico
+   ================================================ */
+
+:root {
+  --blood: #8b0000;
+  --blood-light: #cc0000;
+  --neon: #39ff14;
+  --acid: #b5e853;
+  --rust: #b7410e;
+  --zombie-green: #4a7c59;
+  --dark-bg: #0a0a0a;
+  --dark-panel: #111111;
+  --dark-border: #222222;
+  --pixel-size: 2px;
+}
+
+* {
+  box-sizing: border-box;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--dark-bg);
+  color: #e5e5e5;
+  font-family: 'Share Tech Mono', monospace;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* ================================================
+   PIXEL FONT
+   ================================================ */
+.pixel-font {
+  font-family: 'Press Start 2P', monospace;
+  line-height: 1.8;
+}
+
+/* ================================================
+   SCROLLBAR CUSTOM
+   ================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: var(--blood); }
+
+/* ================================================
+   PANEL / CARD ESTILO RETRO
+   ================================================ */
+.retro-panel {
+  background: rgba(10, 10, 10, 0.95);
+  border: 2px solid var(--blood);
+  position: relative;
+  box-shadow:
+    0 0 0 1px #000,
+    inset 0 0 0 1px rgba(139, 0, 0, 0.3),
+    0 0 20px rgba(139, 0, 0, 0.2);
+}
+
+.retro-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.05) 2px,
+    rgba(0, 0, 0, 0.05) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.retro-panel-green {
+  background: rgba(10, 10, 10, 0.95);
+  border: 2px solid var(--zombie-green);
+  box-shadow:
+    0 0 0 1px #000,
+    inset 0 0 0 1px rgba(74, 124, 89, 0.3),
+    0 0 20px rgba(74, 124, 89, 0.2);
+}
+
+/* ================================================
+   BOTÕES RETRO
+   ================================================ */
+.btn-retro {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  padding: 10px 16px;
+  border: 2px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  image-rendering: pixelated;
+}
+
+.btn-retro::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 100%;
+  height: 100%;
+  border: 2px solid currentColor;
+  opacity: 0.4;
+  z-index: -1;
+}
+
+.btn-retro:hover {
+  transform: translate(-2px, -2px);
+}
+
+.btn-retro:active {
+  transform: translate(0, 0);
+}
+
+.btn-retro-red {
+  color: var(--blood-light);
+  border-color: var(--blood-light);
+}
+.btn-retro-red:hover {
+  background: rgba(200, 0, 0, 0.2);
+  box-shadow: 0 0 15px rgba(200, 0, 0, 0.5);
+  color: #ff3333;
+}
+
+.btn-retro-green {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+.btn-retro-green:hover {
+  background: rgba(57, 255, 20, 0.1);
+  box-shadow: 0 0 15px rgba(57, 255, 20, 0.4);
+}
+
+.btn-retro-yellow {
+  color: #f59e0b;
+  border-color: #f59e0b;
+}
+.btn-retro-yellow:hover {
+  background: rgba(245, 158, 11, 0.1);
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+}
+
+/* ================================================
+   BARRAS DE PROGRESSO
+   ================================================ */
+.bar-container {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  height: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.bar-health { background: linear-gradient(90deg, #7f1d1d, #dc2626); }
+.bar-stamina { background: linear-gradient(90deg, #1e3a5f, #3b82f6); }
+.bar-xp { background: linear-gradient(90deg, #4c1d95, #8b5cf6); }
+
+/* ================================================
+   DAMAGE NUMBERS
+   ================================================ */
+.damage-number {
+  position: absolute;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
+  animation: float-up 1.5s ease-out forwards;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
+}
+
+.damage-number.crit {
+  font-size: 16px;
+  color: #ffd700;
+}
+
+.damage-number.normal { color: #ff4444; }
+.damage-number.heal { color: #44ff44; }
+.damage-number.miss { color: #888; font-size: 9px; }
+
+@keyframes float-up {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  50% { transform: translateY(-40px) scale(1.2); opacity: 1; }
+  100% { transform: translateY(-70px) scale(0.8); opacity: 0; }
+}
+
+/* ================================================
+   NOTIFICAÇÕES
+   ================================================ */
+.notification-enter {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+.notification-exit {
+  animation: slide-out-right 0.3s ease-in forwards;
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slide-out-right {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(120%); opacity: 0; }
+}
+
+/* ================================================
+   EFEITO SCANLINE (CRT)
+   ================================================ */
+.scanlines {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 1px,
+    rgba(0, 0, 0, 0.03) 1px,
+    rgba(0, 0, 0, 0.03) 2px
+  );
+}
+
+/* ================================================
+   EFEITO VINHETA
+   ================================================ */
+.vignette {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 60%,
+    rgba(0, 0, 0, 0.7) 100%
+  );
+}
+
+/* ================================================
+   MAPA / TILES
+   ================================================ */
+.game-canvas {
+  position: relative;
+  overflow: hidden;
+  cursor: crosshair;
+  background: #050505;
+}
+
+.map-tile {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: filter 0.15s;
+  image-rendering: pixelated;
+}
+
+.map-tile.fog {
+  filter: brightness(0.15) saturate(0.3);
+  background: #080808 !important;
+}
+
+.map-tile.explored {
+  filter: brightness(0.7);
+}
+
+.map-tile.visible {
+  filter: brightness(1);
+}
+
+.map-tile.new-tile {
+  animation: tile-reveal 0.5s ease-out;
+}
+
+@keyframes tile-reveal {
+  0% { filter: brightness(0); transform: scale(0.95); }
+  50% { filter: brightness(1.5); }
+  100% { filter: brightness(1); transform: scale(1); }
+}
+
+/* ================================================
+   PERSONAGEM CSS (retro pixel art)
+   ================================================ */
+.character-sprite {
+  position: absolute;
+  image-rendering: pixelated;
+  z-index: 100;
+  transform-origin: center bottom;
+}
+
+/* ================================================
+   MODAL / OVERLAY
+   ================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+  animation: fade-in 0.2s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  animation: modal-enter 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modal-enter {
+  from { transform: scale(0.85) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* ================================================
+   RARITY COLORS
+   ================================================ */
+.rarity-common { color: #9ca3af; }
+.rarity-uncommon { color: #22c55e; }
+.rarity-rare { color: #3b82f6; }
+.rarity-epic { color: #a855f7; }
+.rarity-legendary { color: #f59e0b; }
+
+.rarity-bg-common { background: rgba(156, 163, 175, 0.1); border-color: rgba(156, 163, 175, 0.3); }
+.rarity-bg-uncommon { background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.3); }
+.rarity-bg-rare { background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.3); }
+.rarity-bg-epic { background: rgba(168, 85, 247, 0.1); border-color: rgba(168, 85, 247, 0.3); }
+.rarity-bg-legendary { background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); }
+
+/* ================================================
+   GLOW EFFECTS
+   ================================================ */
+.glow-red { box-shadow: 0 0 15px rgba(220, 38, 38, 0.6); }
+.glow-green { box-shadow: 0 0 15px rgba(57, 255, 20, 0.6); }
+.glow-blue { box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }
+.glow-yellow { box-shadow: 0 0 15px rgba(245, 158, 11, 0.6); }
+.glow-purple { box-shadow: 0 0 15px rgba(168, 85, 247, 0.6); }
+
+/* ================================================
+   LOADING / SCREEN EFFECTS
+   ================================================ */
+.blood-drip {
+  animation: drip 2s ease-in infinite;
+}
+
+@keyframes drip {
+  0% { transform: scaleY(0); transform-origin: top; }
+  50% { transform: scaleY(1); }
+  100% { transform: scaleY(1) translateY(20px); opacity: 0; }
+}
+
+/* ================================================
+   MINI MAP
+   ================================================ */
+.minimap-container {
+  border: 2px solid var(--blood);
+  position: relative;
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+.minimap-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 4px solid rgba(139, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+/* ================================================
+   CHAT
+   ================================================ */
+.chat-message {
+  animation: chat-fade-in 0.3s ease-out;
+}
+
+@keyframes chat-fade-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ================================================
+   PIXEL BORDER EFFECT
+   ================================================ */
+.pixel-border {
+  box-shadow:
+    -2px 0 0 0 currentColor,
+    2px 0 0 0 currentColor,
+    0 -2px 0 0 currentColor,
+    0 2px 0 0 currentColor;
+}
+
+/* ================================================
+   TOOLTIP
+   ================================================ */
+.tooltip {
+  position: absolute;
+  background: rgba(10, 10, 10, 0.98);
+  border: 1px solid #333;
+  padding: 8px 12px;
+  font-size: 11px;
+  z-index: 999;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+/* ================================================
+   RESPONSIVE
+   ================================================ */
+@media (max-width: 768px) {
+  .btn-retro { font-size: 8px; padding: 8px 12px; }
+  .pixel-font { font-size: 85%; }
+}
