@@ -85,6 +85,9 @@ export default function GamePage() {
       setGameRunning(true);
       addNotification(`Bem-vindo de volta, ${playerData.username}!`, 'success');
       addNotification('WASD para mover · Clique para atirar', 'info');
+      if (window.innerWidth < 768) {
+        addNotification('Mobile: Coleta e Ataque automáticos.', 'success');
+      }
 
     } catch (err: any) {
       setStatus('error');

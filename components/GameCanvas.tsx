@@ -442,11 +442,14 @@ export default function GameCanvas() {
       const moving = dx !== 0 || dy !== 0;
       setIsMoving(moving);
 
-      // Always face the mouse
-      const { w, h } = windowSize;
-      const mdx = mousePosRef.current.x - w / 2;
-      const mdy = mousePosRef.current.y - h / 2;
-      setPlayerDir((Math.atan2(mdy, mdx) * 180 / Math.PI + 360) % 360);
+      // Facing direction
+      if (w >= 768) {
+        const mdx = mousePosRef.current.x - w / 2;
+        const mdy = mousePosRef.current.y - h / 2;
+        setPlayerDir((Math.atan2(mdy, mdx) * 180 / Math.PI + 360) % 360);
+      } else if (moving) {
+        setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
+      }
 
       const keys = keysRef.current;
       let isSprinting = moving && !showInventory && (keys.has('ShiftLeft') || keys.has('ShiftRight')) && p.current_stamina > 5;
@@ -501,6 +504,11 @@ export default function GameCanvas() {
       // Viewport
       setViewport(px - w / 2, py - h / 2);
 
+      // Mobile Auto-actions
+      if (w < 768) {
+        checkItemPickup();
+        performAttack(p, px, py);
+      }
       // Atualiza zumbis
       updateZombies(dt, p, px, py);
 
@@ -546,6 +554,7 @@ export default function GameCanvas() {
         supabase.from('inventory').insert(invItem).then();
 
         addNotification(`Coletou: ${item.item_name}`, 'info');
+        updatePlayerStats({ items_collected: (state.player?.items_collected || 0) + 1 });
         if (item.item_type === 'weapon' && !state.equippedWeapon) {
           setEquippedWeapon({ ...invItem, equipped: true });
         }
@@ -739,7 +748,10 @@ export default function GameCanvas() {
 
       {/* ── Weapon HUD ── */}
       <div style={{
-        position: 'absolute', bottom: 20, left: 20, zIndex: 1000,
+        position: 'absolute', 
+        bottom: windowSize.w < 768 ? 100 : 20, 
+        left: 20, 
+        zIndex: 1000,
         display: 'flex', gap: 10, pointerEvents: 'none'
       }}>
         <div style={{

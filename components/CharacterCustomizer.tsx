@@ -15,6 +15,14 @@ export default function CharacterCustomizer() {
   const { showCharCustomizer, toggleCharCustomizer, player, updatePlayerStats } = useGameStore();
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'design' | 'css'>('profile');
+  const [windowSize, setWindowSize] = useState({ w: 800, h: 600 });
+
+  React.useEffect(() => {
+    setWindowSize({ w: window.innerWidth, h: window.innerHeight });
+    const onResize = () => setWindowSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   
   const [preview, setPreview] = useState({
     skin_color: player?.skin_color || '#FFDBAC',
@@ -110,21 +118,34 @@ export default function CharacterCustomizer() {
           <button className="btn-retro btn-retro-red" onClick={toggleCharCustomizer} style={{ padding: '4px 8px', fontSize: 9 }}>✕</button>
         </div>
 
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', gap: 0 }}>
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: windowSize.w < 768 ? 'column' : 'row',
+          flex: 1, 
+          overflow: 'hidden', 
+          gap: 0 
+        }}>
           {/* Preview do personagem */}
           <div style={{
-            width: 180,
+            width: windowSize.w < 768 ? '100%' : 180,
+            height: windowSize.w < 768 ? 'auto' : '100%',
             background: 'rgba(5,5,5,0.9)',
             display: 'flex',
-            flexDirection: 'column',
+            flexDirection: windowSize.w < 768 ? 'row' : 'column',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 16,
-            borderRight: '1px solid #1a1a1a',
+            borderRight: windowSize.w < 768 ? 'none' : '1px solid #1a1a1a',
+            borderBottom: windowSize.w < 768 ? '1px solid #1a1a1a' : 'none',
             padding: 16,
             flexShrink: 0,
           }}>
-            <div style={{ transform: 'scale(2.5)', transformOrigin: 'center center', marginBottom: 60, marginTop: 20 }}>
+            <div style={{ 
+              transform: windowSize.w < 768 ? 'scale(1.5)' : 'scale(2.5)', 
+              transformOrigin: 'center center', 
+              marginBottom: windowSize.w < 768 ? 20 : 60, 
+              marginTop: windowSize.w < 768 ? 20 : 20 
+            }}>
               <PlayerSprite
                 skinColor={preview.skin_color}
                 hairColor={preview.hair_color}
@@ -137,7 +158,14 @@ export default function CharacterCustomizer() {
             </div>
 
             {/* Stats do player */}
-            <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: 12, width: '100%' }}>
+            <div style={{ 
+              borderLeft: windowSize.w < 768 ? '1px solid #1a1a1a' : 'none',
+              borderTop: windowSize.w < 768 ? 'none' : '1px solid #1a1a1a', 
+              paddingTop: windowSize.w < 768 ? 0 : 12,
+              paddingLeft: windowSize.w < 768 ? 16 : 0,
+              flex: 1,
+              width: '100%' 
+            }}>
               <div className="pixel-font text-center mb-2" style={{ fontSize: 7, color: '#666' }}>ATRIBUTOS</div>
               {[
                 { label: 'FORÇA', value: player.strength, max: 20, color: '#dc2626' },

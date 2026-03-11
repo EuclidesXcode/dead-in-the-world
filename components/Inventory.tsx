@@ -207,13 +207,13 @@ export default function Inventory() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               style={{
-                padding: '8px 12px',
-                fontSize: 8,
+                padding: window.innerWidth < 768 ? '12px 16px' : '8px 12px',
+                fontSize: window.innerWidth < 768 ? 10 : 8,
                 fontFamily: "'Press Start 2P', monospace",
                 background: activeTab === tab.key ? 'rgba(139,0,0,0.3)' : 'transparent',
                 color: activeTab === tab.key ? '#dc2626' : '#555',
                 border: 'none',
-                borderBottom: activeTab === tab.key ? '2px solid #dc2626' : '2px solid transparent',
+                borderBottom: activeTab === tab.key ? '3px solid #dc2626' : '2px solid transparent',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 transition: 'all 0.15s',
@@ -278,7 +278,7 @@ export default function Inventory() {
                     INVENTÁRIO VAZIO
                   </div>
                 )}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${window.innerWidth < 768 ? '85px' : '70px'}, 1fr))`, gap: 8 }}>
                   {filtered.map(item => {
                     const rarityConf = RARITY_CONFIG[item.rarity];
                     const isSelected = selectedItem === item.id;

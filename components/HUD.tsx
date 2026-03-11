@@ -127,13 +127,17 @@ export default function HUD() {
         )}
       </div>
 
-      {/* ── BOTTOM CENTER: Hotbar de ações (oculto no mobile — usa TouchControls) ── */}
+      {/* ── BOTTOM CENTER: Hotbar de ações ── */}
       <div
         className="absolute bottom-4 left-1/2 z-50"
-        style={{ transform: 'translateX(-50%)', display: 'var(--hotbar-display, flex)' }}
+        style={{ 
+          transform: 'translateX(-50%)', 
+          display: 'flex',
+          maxWidth: '90vw'
+        }}
       >
         <div className="retro-panel px-2 py-2">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" style={{ overflowX: 'auto', maxWidth: '85vw' }}>
             {[
               { key: 'I', label: 'INVENTÁRIO', icon: '🎒', action: toggleInventory },
               { key: 'M', label: 'MAPA', icon: '🗺️', action: toggleMap },
@@ -146,10 +150,16 @@ export default function HUD() {
                 key={key}
                 onClick={action}
                 className="flex flex-col items-center gap-1 hover:bg-red-900 transition-colors"
-                style={{ border: '1px solid #333', minWidth: 40, padding: '6px 4px', background: 'transparent', cursor: 'pointer' }}
+                style={{ 
+                  border: '1px solid #333', 
+                  minWidth: window.innerWidth < 768 ? 48 : 40,
+                  padding: window.innerWidth < 768 ? '10px 8px' : '6px 4px', 
+                  background: 'transparent', 
+                  cursor: 'pointer' 
+                }}
                 title={label}
               >
-                <span style={{ fontSize: 16 }}>{icon}</span>
+                <span style={{ fontSize: window.innerWidth < 768 ? 20 : 16 }}>{icon}</span>
                 <span style={{ fontSize: 6, color: '#555', fontFamily: "'Share Tech Mono', monospace" }}>[{key}]</span>
               </button>
             ))}
