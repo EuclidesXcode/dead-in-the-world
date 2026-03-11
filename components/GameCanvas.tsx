@@ -6,6 +6,7 @@ import { playerWorldPixelFromLatLng, GAME_TILE_PX, worldPixelToLatLng } from '@/
 import { distance, calculatePlayerDamage, calculateZombieDamage, checkLevelUp } from '@/lib/combat';
 import { calcMaxZombies, createSpawnZombie, nextSpawnDelay } from '@/lib/zombieSpawner';
 import { supabase } from '@/lib/supabase';
+import { audioSystem } from '@/lib/audio';
 import PlayerSprite from './PlayerSprite';
 import ZombieSprite from './ZombieSprite';
 import StreetMap from './StreetMap';
@@ -35,6 +36,7 @@ export default function GameCanvas() {
   const playerPosRef = useRef({ x: 0, y: 0 });
   const originTileRef = useRef({ x: 0, y: 0 });
   const mousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  const isMouseMovingRef = useRef(false);
   const animFrameRef = useRef<number>(0);
   const spawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -50,6 +52,22 @@ export default function GameCanvas() {
     const onResize = () => setWindowSize({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // ── Inicializa BGM após interação do usuário ──
+  useEffect(() => {
+    const initAudio = () => {
+      audioSystem?.startBGM();
+      window.removeEventListener('click', initAudio);
+      window.removeEventListener('keydown', initAudio);
+    };
+    window.addEventListener('click', initAudio);
+    window.addEventListener('keydown', initAudio);
+    return () => {
+       audioSystem?.stopBGM();
+       window.removeEventListener('click', initAudio);
+       window.removeEventListener('keydown', initAudio);
+    };
   }, []);
 
   // ── Inicializa posição do player usando lat/lng real → pixel OSM ──
@@ -195,6 +213,9 @@ export default function GameCanvas() {
       if (!ok) { addNotification('Sem munição!', 'warning'); return; }
     }
 
+    // Dispara som e reduz cooldown
+    audioSystem?.playShootSound();
+
     const { damage, isCrit, missed } = calculatePlayerDamage(p, weapon);
     const state = useGameStore.getState();
 
@@ -206,6 +227,7 @@ export default function GameCanvas() {
     });
 
     if (!missed) {
+      audioSystem?.playZombieHurt();
       const newHp = Math.max(0, target.current_health - damage);
       if (newHp <= 0) {
         setZombie({ ...target, is_alive: false, current_health: 0 });
@@ -258,7 +280,15 @@ export default function GameCanvas() {
         const mdx = mousePosRef.current.x - w / 2;
         const mdy = mousePosRef.current.y - h / 2;
         const dist = Math.sqrt(mdx * mdx + mdy * mdy);
-        if (dist > 30) { // deadzone no centro
+        
+        if (isMouseMovingRef.current) {
+          if (dist < 20) isMouseMovingRef.current = false;
+        } else {
+          // Só anda de novo quando distanciar o mouse (puxar o mouse)
+          if (dist > 50) isMouseMovingRef.current = true;
+        }
+
+        if (isMouseMovingRef.current) {
           dx = mdx;
           dy = mdy;
         }
