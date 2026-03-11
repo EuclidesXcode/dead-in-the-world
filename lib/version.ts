@@ -15,6 +15,11 @@ export const CHANGELOG: { version: string; date: string; changes: string[] }[] =
     version: '0.3.1',
     date: '2026-03-11',
     changes: [
+      'Upgrade Supremo: Funda (destrua) duas armas iguais para aumentar maciçamente todos os seus "status" (Dano, Cadência, Alcance e Pente)',
+      'Eventos Dinâmicos: Sistema de Bombardeios e Hordas repentinas no mapa (cuidado com as zonas vermelhas!)',
+      'Eventos Dinâmicos: Zumbis do tipo Screamer agora também podem chamar hordas de zumbis para a área',
+      'Sistemas de UI: Atalho `ESC` inteligente para fechamento rápido de todas as telas modais',
+      'Chat de Voz: Implementado Voice-Chat por proximidade 3D p2p (mútuo/volume decresce com a distância)',
       'Sistema de Upgrades: Refino de armas usando Sucata e Eletrônicos (Dano, Cadência, Alcance)',
       'Armas Avançadas: Fuzil de Plasma, Magnum .44, RPG e Railgun',
       'Evolução Visual: Projéteis crescem conforme o upgrade de dano da arma',

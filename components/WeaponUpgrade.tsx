@@ -9,7 +9,7 @@ const UPGRADE_ITEMS = ['silencer', 'extended_mag', 'scope', 'grip'];
 
 export default function WeaponUpgrade() {
   const { showWeaponUpgrade, toggleWeaponUpgrade, inventory, equippedWeapon, updateInventoryItem, removeInventoryItem, addNotification } = useGameStore();
-  const [activeTab, setActiveTab] = useState<'attachments' | 'refine'>('attachments');
+  const [activeTab, setActiveTab] = useState<'attachments' | 'refine' | 'fuse'>('attachments');
   const [selectedUpgrade, setSelectedUpgrade] = useState<string | null>(null);
 
   if (!showWeaponUpgrade) return null;
@@ -98,6 +98,25 @@ export default function WeaponUpgrade() {
     addNotification(`${weapon.item_name} refinado! +Level de ${stat}`, 'success');
   };
 
+  const handleFuse = async (consumedWeapon: InventoryItem) => {
+    if (!weapon) return;
+    
+    const newStats = { ...weapon.stats };
+    newStats.refine_level = (newStats.refine_level || 0) + 1;
+    newStats.damage = (newStats.damage || 0) + 10;
+    newStats.fire_rate = (newStats.fire_rate || 1) + 0.5;
+    newStats.range = (newStats.range || 100) + 50;
+    newStats.magazine = (newStats.magazine || 0) + 2;
+
+    updateInventoryItem(weapon.id, { stats: newStats });
+    removeInventoryItem(consumedWeapon.id);
+
+    await supabase.from('inventory').update({ stats: newStats }).eq('id', weapon.id);
+    await supabase.from('inventory').delete().eq('id', consumedWeapon.id);
+
+    addNotification(`${weapon.item_name} FUNDIDO COM SUCESSO! Status massivamente aumentados.`, 'success');
+  };
+
   return (
     <div className="modal-overlay" onClick={toggleWeaponUpgrade}>
       <div
@@ -120,6 +139,10 @@ export default function WeaponUpgrade() {
              onClick={() => setActiveTab('refine')}
              className={`flex-1 py-2 pixel-font text-[9px] transition-all border ${activeTab === 'refine' ? 'border-[#39ff14] text-[#39ff14] bg-[#39ff1411]' : 'border-white/10 text-white/40'}`}
            >REFINO TÉCNICO</button>
+           <button 
+             onClick={() => setActiveTab('fuse')}
+             className={`flex-1 py-2 pixel-font text-[9px] transition-all border ${activeTab === 'fuse' ? 'border-[#a855f7] text-[#a855f7] bg-[#a855f711]' : 'border-white/10 text-white/40'}`}
+           >FUSÃO (DUPLICATAS)</button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
@@ -179,7 +202,7 @@ export default function WeaponUpgrade() {
                      ))
                    )}
                 </div>
-              ) : (
+              ) : activeTab === 'refine' ? (
                 <div className="space-y-4">
                    <div className="flex gap-4 p-3 bg-[#39ff1408] border border-[#39ff1422] justify-center">
                       <div className="text-center">
@@ -222,7 +245,33 @@ export default function WeaponUpgrade() {
                       })}
                    </div>
                 </div>
-              )}
+              ) : activeTab === 'fuse' ? (
+                 <div className="space-y-4">
+                    <div className="text-center text-[10px] text-[#a855f7] pixel-font mb-4">SACRIFIQUE UMA ARMA IGUAL PARA UM BOOST MASSIVO</div>
+                    
+                    {inventory.filter(i => i.item_id === weapon.item_id && i.id !== weapon.id).length === 0 ? (
+                       <div className="text-center py-8 text-white/20 text-[10px] uppercase">
+                         Você não tem outra {weapon.item_name} no inventário para fundir.
+                       </div>
+                    ) : (
+                       inventory.filter(i => i.item_id === weapon.item_id && i.id !== weapon.id).map(dup => (
+                          <div key={dup.id} className="flex items-center justify-between p-4 bg-[#a855f70a] border border-[#a855f733] hover:border-[#a855f7] transition-all group">
+                             <div className="flex items-center gap-4">
+                                <span className="text-3xl grayscale group-hover:grayscale-0 transition-all opacity-50">{ITEM_DATABASE[dup.item_id]?.emoji}</span>
+                                <div>
+                                   <div className="text-white text-[10px] font-bold">{dup.item_name} <span className="text-[#a855f7]">LVL {dup.stats?.refine_level || 0}</span></div>
+                                   <div className="text-[8px] text-white/30 truncate max-w-[150px]">Será destruída no processo (+Dano, +Cadência, +Alcance)</div>
+                                </div>
+                             </div>
+                             <button 
+                               className="bg-red-600 text-white px-4 py-2 pixel-font text-[8px] hover:bg-red-500 font-bold transition-all shadow-[0_0_10px_rgba(220,38,38,0.5)]"
+                               onClick={() => handleFuse(dup)}
+                             >FUNDIR - DESTRUIR</button>
+                          </div>
+                       ))
+                    )}
+                 </div>
+              ) : null}
             </>
           )}
         </div>

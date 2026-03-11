@@ -103,6 +103,7 @@ export default function GameCanvas() {
   const [projectiles, setProjectiles] = useState<VisualProjectile[]>([]);
   const [hordeActive, setHordeActive] = useState(false);
   const [hordeTimer, setHordeTimer] = useState(0);
+  const [airstrikes, setAirstrikes] = useState<{id: string, x: number, y: number, radius: number, timer: number}[]>([]);
 
   // ── Window size ──
   useEffect(() => {
@@ -252,6 +253,34 @@ export default function GameCanvas() {
       handleDeath();
     }
   }, [player?.current_health === 0]);
+
+  // ── Evento Global Aleatório: Bombardeio + Horda ──
+  useEffect(() => {
+    const interval = setInterval(() => {
+       // Chance de 15% a cada 15 segundos se não houver horda
+       if (Math.random() < 0.15 && !hordeActive && airstrikes.length === 0) {
+          useGameStore.getState().addNotification('⚠️ ALERTA MILITAR: BOMBARDEIO E HORDA IMINENTES!', 'danger');
+          
+          setHordeActive(true);
+          setHordeTimer(30);
+
+          const px = playerPosRef.current.x;
+          const py = playerPosRef.current.y;
+          const zones = [];
+          for (let i = 0; i < 6; i++) {
+             zones.push({
+               id: Math.random().toString(),
+               x: px + (Math.random() * 800 - 400),
+               y: py + (Math.random() * 800 - 400),
+               radius: 100 + Math.random() * 80,
+               timer: 3 + Math.random() * 6 // Explodem entre 3 e 9 segundos
+             });
+          }
+          setAirstrikes(zones);
+       }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [hordeActive, airstrikes.length]);
 
   // ── Sistema de Spawn ──
   const scheduleSpawn = useCallback(() => {
@@ -759,6 +788,42 @@ export default function GameCanvas() {
          });
       }
 
+      // Atualiza Bombardeio
+      setAirstrikes(prev => {
+         if (prev.length === 0) return prev;
+         let hasChanges = false;
+         const next = prev.map(a => {
+            const newTimer = a.timer - dt;
+            if (newTimer <= 0) {
+              hasChanges = true;
+              // Explode
+              const distP = distance(px, py, a.x, a.y);
+              if (distP <= a.radius) {
+                 useGameStore.getState().updatePlayerStats({ current_health: Math.max(0, p.current_health - 60) });
+                 useGameStore.getState().addDamageNumber({ x: px, y: py - 20, damage: 60, isCrit: true });
+              }
+              const currentState = useGameStore.getState();
+              currentState.zombies.forEach(zom => {
+                 if (zom.is_alive && distance(zom.pos_x, zom.pos_y, a.x, a.y) <= a.radius) {
+                    currentState.setZombie({ ...zom, current_health: 0, is_alive: false });
+                    currentState.addDamageNumber({ x: zom.pos_x, y: zom.pos_y - 20, damage: 999, isCrit: true });
+                 }
+              });
+              // Efeito visual na frente usando projeteis falsos grandes e lentos
+              setTimeout(() => {
+                setProjectiles(pj => [...pj, {
+                  id: crypto.randomUUID(), sx: a.x, sy: a.y, tx: a.x, ty: a.y,
+                  progress: 0.8, speed: 0.1, type: 'rocket', size: a.radius / 5
+                }]);
+              }, 10);
+              return null;
+            }
+            if (newTimer !== a.timer) hasChanges = true;
+            return { ...a, timer: newTimer };
+         }).filter(Boolean) as any;
+         return hasChanges ? next : prev;
+      });
+
       // Atualiza Projéteis Visuais
       setProjectiles(prev => {
         if (prev.length === 0) return prev;
@@ -875,6 +940,29 @@ export default function GameCanvas() {
               transform: `rotate(${angle}deg)`,
               borderRadius: '50% 100% 100% 50% / 50% 100% 100% 50%',
             }} />
+          );
+        })}
+
+        {/* ── Bombardeios ── */}
+        {airstrikes.map(a => {
+          const sx = a.x - viewportX;
+          const sy = a.y - viewportY;
+          if (a.timer <= 0) return null;
+          
+          return (
+            <div key={a.id} style={{
+              position: 'absolute', left: sx - a.radius, top: sy - a.radius,
+              width: a.radius * 2, height: a.radius * 2,
+              borderRadius: '50%',
+              background: 'rgba(255, 0, 0, 0.2)',
+              border: '2px solid rgba(255, 0, 0, 0.6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: 'pulse-red 0.5s infinite',
+              pointerEvents: 'none',
+              zIndex: 10
+            }}>
+              <span style={{ color: 'red', fontWeight: 'bold' }}>{Math.ceil(a.timer)}</span>
+            </div>
           );
         })}
 
