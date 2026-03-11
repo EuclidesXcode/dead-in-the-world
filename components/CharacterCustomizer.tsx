@@ -36,6 +36,7 @@ export default function CharacterCustomizer() {
     hair_color: player?.hair_color || '#3D2B1F',
     shirt_color: player?.shirt_color || '#1a1a2e',
     pants_color: player?.pants_color || '#2d2d44',
+    name_color: player?.name_color || (player?.has_css_access ? '#39ff14' : '#ffffff'),
     custom_css: player?.custom_css || '',
   });
 
@@ -47,6 +48,7 @@ export default function CharacterCustomizer() {
         hair_color: player.hair_color,
         shirt_color: player.shirt_color,
         pants_color: player.pants_color,
+        name_color: player.name_color || (player.has_css_access ? '#39ff14' : '#ffffff'),
         custom_css: player.custom_css || '',
       });
     }
@@ -64,6 +66,7 @@ export default function CharacterCustomizer() {
         hair_color: preview.hair_color,
         shirt_color: preview.shirt_color,
         pants_color: preview.pants_color,
+        name_color: preview.name_color,
         custom_css: preview.custom_css,
       };
       await supabase
@@ -189,6 +192,7 @@ export default function CharacterCustomizer() {
                 hairColor={preview.hair_color}
                 shirtColor={preview.shirt_color}
                 pantsColor={preview.pants_color}
+                nameColor={preview.name_color}
                 scale={1}
                 isLocal={true}
                 customStyles={parsedStyles}
@@ -257,6 +261,7 @@ export default function CharacterCustomizer() {
                 <ColorSection title="COR DO CABELO" colors={HAIR_COLORS} selected={preview.hair_color} onSelect={(c) => setPreview(p => ({ ...p, hair_color: c }))} />
                 <ColorSection title="COR DA CAMISA" colors={SHIRT_COLORS} selected={preview.shirt_color} onSelect={(c) => setPreview(p => ({ ...p, shirt_color: c }))} />
                 <ColorSection title="COR DA CALÇA" colors={PANTS_COLORS} selected={preview.pants_color} onSelect={(c) => setPreview(p => ({ ...p, pants_color: c }))} />
+                <ColorSection title="COR DO NOME" colors={['#ffffff', '#39ff14', '#ff3e3e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#22c55e']} selected={preview.name_color} onSelect={(c) => setPreview(p => ({ ...p, name_color: c }))} />
               </>
             )}
 

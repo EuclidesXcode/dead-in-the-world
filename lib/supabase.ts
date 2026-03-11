@@ -94,6 +94,7 @@ export interface Player {
   is_online: boolean;
   last_seen: string;
   custom_css?: string;
+  name_color?: string;
   created_at: string;
 }
 

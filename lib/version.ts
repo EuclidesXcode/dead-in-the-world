@@ -7,10 +7,24 @@
 //  PATCH → bug fix, ajuste visual, melhoria pequena
 // ──────────────────────────────────────────────────────
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 export const VERSION_LABEL = 'Alpha';
 
 export const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
+  {
+    version: '0.3.1',
+    date: '2026-03-11',
+    changes: [
+      'Sistema de Upgrades: Refino de armas usando Sucata e Eletrônicos (Dano, Cadência, Alcance)',
+      'Armas Avançadas: Fuzil de Plasma, Magnum .44, RPG e Railgun',
+      'Evolução Visual: Projéteis crescem conforme o upgrade de dano da arma',
+      'Dual-Wielding: Personagem agora atira com ambas as armas equipadas simultaneamente',
+      'Customização de Perfil: Adicionada opção de mudar a cor do nome de exibição',
+      'Sistema de Doação PIX: Implementado na tela de login para suporte ao projeto',
+      'Melhoria de UI: Aumento de fontes no inventário para melhor legibilidade',
+      'Mecânica de Dano: Splash damage (explosivos) e tiros atravessantes (railgun)',
+    ],
+  },
   {
     version: '0.3.0',
     date: '2026-03-11',

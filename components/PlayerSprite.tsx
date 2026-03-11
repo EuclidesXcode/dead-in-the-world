@@ -20,6 +20,7 @@ interface PlayerSpriteProps {
   scale?: number;
   isLocal?: boolean;   // jogador local tem borda diferente
   username?: string;
+  nameColor?: string;
   customStyles?: Record<string, React.CSSProperties>;
 }
 
@@ -37,6 +38,7 @@ export default function PlayerSprite({
   scale = 1,
   isLocal = false,
   username,
+  nameColor,
   customStyles = {},
 }: PlayerSpriteProps) {
   const isNight = useGameStore(state => state.isNight);
@@ -92,7 +94,7 @@ export default function PlayerSprite({
             whiteSpace: 'nowrap',
             fontSize: 7,
             fontFamily: "'Press Start 2P', monospace",
-            color: isLocal ? '#39ff14' : '#fff',
+            color: customStyles.username?.color || nameColor || (isLocal ? '#39ff14' : '#fff'),
             textShadow: '1px 1px 0 #000, -1px -1px 0 #000',
             pointerEvents: 'none',
             ...customStyles.username

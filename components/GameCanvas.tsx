@@ -391,10 +391,17 @@ export default function GameCanvas() {
     const processShoot = (target: any, weapon: any, isSecondary: boolean) => {
       if (!weapon) return false;
       
-      // Direção do Player baseada na mira
       const dx = targetX - px;
       const dy = targetY - py;
-      setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
+      const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+      setPlayerDir(angle);
+
+      // Offset para simular mãos (esquerda/direita)
+      const rad = (angle * Math.PI) / 180;
+      const handDist = 14;
+      const side = isSecondary ? 1 : -1;
+      const ox = Math.cos(rad + Math.PI/2) * handDist * side;
+      const oy = Math.sin(rad + Math.PI/2) * handDist * side;
 
       if (weapon.stats?.ammo_type) {
         const ok = useGameStore.getState().useAmmo(weapon.stats.ammo_type, 1);
@@ -407,58 +414,57 @@ export default function GameCanvas() {
       audioSystem?.playShootSound();
       const { damage, isCrit, missed } = calculatePlayerDamage(p, weapon);
       
-      // Pega posição do alvo para feedback
       let tx = target?.pos_x ?? targetX;
       let ty = target?.pos_y ?? targetY;
       
-      if (target && 'last_lat' in target) { // É um Player
+      if (target && 'last_lat' in target) {
          const { pixelX, pixelY } = playerWorldPixelFromLatLng(target.last_lat, target.last_lng);
          tx = pixelX; ty = pixelY;
       }
 
-      addDamageNumber({
-        x: tx - state.viewportX,
-        y: ty - state.viewportY - 20,
-        damage: missed ? 0 : damage,
-        isCrit,
-      });
-
-      if (!missed && target) {
-        const splashRadius = weapon.stats?.splash_radius || 0;
-        const targetsToHit = splashRadius > 0 
-          ? findTargetsAtPosition(tx, ty, splashRadius, 10) // Pega até 10 inimigos no raio
-          : [target];
-
-        targetsToHit.forEach(t => {
-          if ('zombie_type' in t) { // Dano em Zumbi
-            audioSystem?.playZombieHurt();
-            const freshTarget = useGameStore.getState().zombies.get(t.id);
-            if (!freshTarget || !freshTarget.is_alive) return;
-            
-            // Dano de splash pode ser menor se não for o alvo principal? 
-            // Por enquanto 100% de dano em todos no raio
-            const newHp = Math.max(0, freshTarget.current_health - (splashRadius > 0 ? damage * 0.8 : damage));
-            
-            if (newHp <= 0) {
-              setZombie({ ...freshTarget, is_alive: false, current_health: 0 });
-              const drop = generateZombieDrop(freshTarget.pos_x, freshTarget.pos_y);
-              if (drop) useGameStore.getState().addWorldItem(drop);
-              setTimeout(() => removeZombie(t.id), 800);
-              updatePlayerStats({ kills: p.kills + 1, xp: p.xp + (freshTarget.xp_reward || 10) });
-              if (targetsToHit.length === 1) addNotification(`Zumbi abatido! +${freshTarget.xp_reward} XP`, 'success');
-            } else {
-              setZombie({ ...freshTarget, current_health: newHp });
-            }
-          }
+      if (!missed) {
+        addDamageNumber({
+          x: tx - state.viewportX + (isSecondary ? 10 : -10),
+          y: ty - state.viewportY - 20,
+          damage: missed ? 0 : damage,
+          isCrit,
         });
-        
-        if (splashRadius > 0) addNotification(`Explosão atingiu ${targetsToHit.length} inimigos!`, 'danger');
+
+        if (target) {
+          const splashRadius = weapon.stats?.splash_radius || 0;
+          const targetsToHit = splashRadius > 0 
+            ? findTargetsAtPosition(tx, ty, splashRadius, 10)
+            : [target];
+
+          targetsToHit.forEach(t => {
+            if ('zombie_type' in t) {
+              audioSystem?.playZombieHurt();
+              const freshTarget = useGameStore.getState().zombies.get(t.id);
+              if (!freshTarget || !freshTarget.is_alive) return;
+              
+              const newHp = Math.max(0, freshTarget.current_health - (splashRadius > 0 ? damage * 0.8 : damage));
+              
+              if (newHp <= 0) {
+                setZombie({ ...freshTarget, is_alive: false, current_health: 0 });
+                const drop = generateZombieDrop(freshTarget.pos_x, freshTarget.pos_y);
+                if (drop) useGameStore.getState().addWorldItem(drop);
+                setTimeout(() => removeZombie(t.id), 800);
+                updatePlayerStats({ kills: p.kills + 1, xp: p.xp + (freshTarget.xp_reward || 10) });
+                if (targetsToHit.length === 1) addNotification(`Zumbi abatido! +${freshTarget.xp_reward} XP`, 'success');
+              } else {
+                setZombie({ ...freshTarget, current_health: newHp });
+              }
+            }
+          });
+          
+          if (splashRadius > 0) addNotification(`Explosão atingiu ${targetsToHit.length} inimigos!`, 'danger');
+        }
       }
 
-      // Sistema visual do projétil
-      setProjectiles(prev => [...prev.slice(-10), {
+      // Sistema visual do projétil saindo da "mão"
+      setProjectiles(prev => [...prev.slice(-30), {
         id: Math.random().toString(36).slice(2),
-        sx: px, sy: py, tx, ty, progress: 0,
+        sx: px + ox, sy: py + oy, tx, ty, progress: 0,
         size: weapon.stats?.projectile_size || 3,
         type: weapon.stats?.bullet_type || 'normal',
       }]);
@@ -467,7 +473,7 @@ export default function GameCanvas() {
     };
 
     if (mainWeapon) processShoot(targets[0], mainWeapon, false);
-    if (offWeapon && targets.length > 1) processShoot(targets[1], offWeapon, true);
+    if (offWeapon) processShoot(targets[0], offWeapon, true);
     
   }, [findTargetsAtPosition, setZombie, removeZombie, updatePlayerStats, addDamageNumber, addNotification, windowSize.w]);
 
