@@ -6,7 +6,7 @@
 
 export const OSM_ZOOM = 17;
 export const OSM_NATIVE_PX = 256;      // Tamanho nativo OSM
-export const GAME_TILE_PX = 820;       // Tamanho renderizado no jogo (zoom 1.6x maior para as ruas ficarem largas)
+export const GAME_TILE_PX = 1400;      // Tamanho renderizado no jogo (zoom mega largo para ruas bem abertas)
 export const METERS_PER_TILE = 153;    // Aproximado à latitude do equador
 
 // ── Conversão lat/lng → tile OSM ──

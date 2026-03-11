@@ -264,8 +264,8 @@ export default function GameCanvas() {
       const p = useGameStore.getState().player;
       if (!p) { animFrameRef.current = requestAnimationFrame(gameLoop); return; }
 
-      // Movimentação (Teclado ou Mouse)
-      const speed = 130 * (1 + p.agility * 0.04);
+      // Movimentação (Teclado ou Mouse) - Ajustada para o novo GAME_TILE_PX massivo
+      const speed = 220 * (1 + p.agility * 0.04);
       let dx = 0, dy = 0;
       const keys = keysRef.current;
       if (keys.has('KeyW') || keys.has('ArrowUp')) dy -= 1;

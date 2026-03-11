@@ -108,8 +108,8 @@ const CAR_COLORS  = ['#3a2210', '#2e1a0a', '#452a16', '#341f0e'];
 
 /* ── Gera elemento SVG de car enferrujado ── */
 function RustedCar({ cx, cy, angle, rand }: { cx: number; cy: number; angle: number; rand: () => number }) {
-  const w = 22 + rand() * 10;
-  const h = 12 + rand() * 4;
+  const w = 36 + rand() * 16;
+  const h = 18 + rand() * 6;
   const c = CAR_COLORS[Math.floor(rand() * CAR_COLORS.length)];
   const tilt = (rand() - 0.5) * 28;
   return (
@@ -123,9 +123,11 @@ function RustedCar({ cx, cy, angle, rand }: { cx: number; cy: number; angle: num
       {/* Manchas de ferrugem */}
       <ellipse cx={-w * 0.3} cy={h * 0.1} rx={w * 0.18} ry={h * 0.25} fill="rgba(90,30,5,0.35)" />
       <ellipse cx={w * 0.3} cy={-h * 0.15} rx={w * 0.12} ry={h * 0.2} fill="rgba(80,20,0,0.3)" />
+      {/* Sangue ressecado */}
+      <circle cx={-w * 0.1} cy={0} r={w * 0.08} fill="rgba(110,10,10,0.4)" />
       {/* Rodas */}
       {[[-w * 0.3, -h / 2], [w * 0.3, -h / 2], [-w * 0.3, h / 2], [w * 0.3, h / 2]].map(([wx, wy], i) => (
-        <circle key={i} cx={wx} cy={wy} r="4" fill="#0a0a08" />
+        <circle key={i} cx={wx} cy={wy} r="5" fill="#0a0a08" />
       ))}
     </g>
   );
@@ -260,12 +262,13 @@ export default function StreetMap({
       >
         <defs>
           {/* Padrão de asfalto rachado */}
-          <pattern id="asphalt-pat" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
-            <rect width="32" height="32" fill={ASPHALT} />
-            <circle cx="8" cy="8" r="3" fill="#151412" opacity="0.5" />
-            <circle cx="24" cy="20" r="4" fill="#131210" opacity="0.4" />
-            <rect x="12" y="4" width="8" height="1" fill="#111" opacity="0.3" />
-            <rect x="2" y="20" width="6" height="0.5" fill="#0e0e0c" opacity="0.4" />
+          <pattern id="asphalt-pat" x="0" y="0" width="48" height="48" patternUnits="userSpaceOnUse">
+            <rect width="48" height="48" fill={ASPHALT} />
+            <circle cx="12" cy="12" r="5" fill="#151412" opacity="0.5" />
+            <circle cx="36" cy="30" r="7" fill="#131210" opacity="0.4" />
+            <rect x="18" y="6" width="12" height="1" fill="#111" opacity="0.3" transform="rotate(20 18 6)" />
+            <rect x="3" y="30" width="10" height="0.5" fill="#0e0e0c" opacity="0.4" />
+            <path d="M 20 40 Q 25 35 30 42" stroke="#111" strokeWidth="1" fill="none" opacity="0.5" />
           </pattern>
           {/* Padrão de calçada (paralelepípedo/lajota) */}
           <pattern id="sidewalk-pat" x="0" y="0" width="18" height="18" patternUnits="userSpaceOnUse">
