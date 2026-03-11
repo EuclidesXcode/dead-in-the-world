@@ -446,3 +446,61 @@ html, body {
   .btn-retro { font-size: 8px; padding: 8px 12px; }
   .pixel-font { font-size: 85%; }
 }
+
+/* ================================================
+   PLAYER ANIMATIONS
+   ================================================ */
+@keyframes player-walk-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px) rotate(2deg); }
+}
+@keyframes jump-breath {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.05); }
+}
+@keyframes leg-swing-left {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(25deg); }
+  75% { transform: rotate(-25deg); }
+}
+@keyframes leg-swing-right {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-25deg); }
+  75% { transform: rotate(25deg); }
+}
+@keyframes arm-swing-left {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-20deg); }
+}
+@keyframes weapon-recoil {
+  0% { transform: translateX(0) rotate(-40deg); }
+  20% { transform: translateX(6px) translateY(1px) rotate(-48deg); }
+  100% { transform: translateX(0) rotate(-40deg); }
+}
+@keyframes player-hurt {
+  0% { filter: brightness(1) sepia(0) hue-rotate(0deg); }
+  20% { filter: brightness(1.5) sepia(1) hue-rotate(-50deg) saturate(5); transform: scale(1.1); }
+  100% { filter: brightness(1) sepia(0) hue-rotate(0deg); transform: scale(1); }
+}
+
+.anim-walk-bounce {
+  animation: player-walk-bounce 0.4s infinite linear;
+}
+.anim-idle-breath {
+  animation: jump-breath 2s infinite ease-in-out;
+}
+.anim-leg-left {
+  animation: leg-swing-left 0.4s infinite linear;
+}
+.anim-leg-right {
+  animation: leg-swing-right 0.4s infinite linear;
+}
+.anim-arm-left {
+  animation: arm-swing-left 0.4s infinite alternate linear;
+}
+.anim-recoil {
+  animation: weapon-recoil 0.15s ease-out;
+}
+.anim-hurt {
+  animation: player-hurt 0.4s ease-out forwards;
+}

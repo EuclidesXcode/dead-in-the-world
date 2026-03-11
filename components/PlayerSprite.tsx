@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 // ──────────────────────────────────────────────────────
 //  PLAYER CSS SPRITE — estilo retro pixel art (GTA 1 / Mario)
@@ -37,12 +37,25 @@ export default function PlayerSprite({
   isLocal = false,
   username,
 }: PlayerSpriteProps) {
+  const [hurtState, setHurtState] = useState(false);
+  const prevHealthRef = useRef(health);
+
+  useEffect(() => {
+    if (health < prevHealthRef.current) {
+      setHurtState(true);
+      const t = setTimeout(() => setHurtState(false), 400);
+      prevHealthRef.current = health;
+      return () => clearTimeout(t);
+    }
+    prevHealthRef.current = health;
+  }, [health]);
+
   // Calcular flip baseado em direção (espelha o sprite)
   const facingLeft = direction > 90 && direction < 270;
   const scaleX = facingLeft ? -1 : 1;
 
-  const walkFrame = isMoving ? 'player-walk' : '';
-  const attackFrame = isAttacking ? 'player-attack' : '';
+  const baseAnim = isMoving ? 'anim-walk-bounce' : 'anim-idle-breath';
+  const hurtAnim = hurtState ? 'anim-hurt' : '';
 
   const healthPercent = Math.max(0, Math.min(100, (health / maxHealth) * 100));
   const healthColor = healthPercent > 60 ? '#22c55e' : healthPercent > 30 ? '#f59e0b' : '#dc2626';
@@ -100,7 +113,7 @@ export default function PlayerSprite({
 
       {/* ── Sprite do personagem ── */}
       <div
-        className={`${walkFrame} ${attackFrame}`}
+        className={`${baseAnim} ${hurtAnim}`}
         style={{
           position: 'relative',
           width: 32 * scale,
@@ -184,10 +197,11 @@ function Head({ skinColor, hairColor, scale, isLocal }: any) {
 // ── Corpo detalhado ──
 function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking }: any) {
   const s = scale;
-  // Animação de pernas ao andar
-  const legLeftAngle = isMoving ? 'rotate(15deg)' : 'rotate(0deg)';
-  const legRightAngle = isMoving ? 'rotate(-15deg)' : 'rotate(0deg)';
-  const armRightAngle = isAttacking ? 'rotate(-40deg)' : isMoving ? 'rotate(10deg)' : 'rotate(0deg)';
+  // Classes de Animação CSS 
+  const legLeftClass = isMoving ? 'anim-leg-left' : '';
+  const legRightClass = isMoving ? 'anim-leg-right' : '';
+  const armLeftClass = isMoving ? 'anim-arm-left' : '';
+  const recoilClass = isAttacking ? 'anim-recoil' : '';
 
   return (
     <>
@@ -205,24 +219,25 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking 
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4 * s, background: 'rgba(0,0,0,0.2)' }} />
       </div>
 
-      {/* ── Braço esquerdo ── */}
-      <div style={{
+      <div 
+        className={armLeftClass}
+        style={{
         position: 'absolute', top: 20 * s, left: 0, width: 6 * s, height: 18 * s,
         background: skinColor, border: `${s}px solid #2a1a0d`,
         transformOrigin: 'top center',
-        transform: isMoving ? 'rotate(-10deg)' : 'rotate(0deg)',
         transition: 'transform 0.15s',
       }}>
         {/* Mão */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5 * s, background: skinColor, borderRadius: '0 0 2px 2px' }} />
       </div>
 
-      {/* ── Braço direito + ARMA ── */}
-      <div style={{
+      <div 
+        className={recoilClass}
+        style={{
         position: 'absolute', top: 20 * s, right: 0, width: 6 * s, height: 18 * s,
         background: skinColor, border: `${s}px solid #2a1a0d`,
         transformOrigin: 'top center',
-        transform: armRightAngle,
+        transform: 'rotate(0deg)',
         transition: 'transform 0.1s',
       }}>
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5 * s, background: skinColor, borderRadius: '0 0 2px 2px' }} />
@@ -259,12 +274,12 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking 
         <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: 5 * s, height: 3 * s, background: '#555' }} />
       </div>
 
-      {/* ── Calça esquerda ── */}
-      <div style={{
+      <div 
+        className={legLeftClass}
+        style={{
         position: 'absolute', top: 36 * s, left: 4 * s, width: 11 * s, height: 16 * s,
         background: pantsColor, border: `${s}px solid #1a1a2a`,
         transformOrigin: 'top center',
-        transform: legLeftAngle,
         transition: 'transform 0.15s',
       }}>
         {/* Costura */}
@@ -275,12 +290,12 @@ function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking 
         </div>
       </div>
 
-      {/* ── Calça direita ── */}
-      <div style={{
+      <div 
+        className={legRightClass}
+        style={{
         position: 'absolute', top: 36 * s, right: 5 * s, width: 11 * s, height: 16 * s,
         background: pantsColor, border: `${s}px solid #1a1a2a`,
         transformOrigin: 'top center',
-        transform: legRightAngle,
         transition: 'transform 0.15s',
       }}>
         <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: s, background: 'rgba(255,255,255,0.08)' }} />
