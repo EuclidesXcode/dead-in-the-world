@@ -768,7 +768,7 @@ export default function GameCanvas() {
       const baseZoom = screenW < 768 ? 0.65 : 1.0;
       const zoom = baseZoom * useGameStore.getState().cameraZoom;
       const w = screenW / zoom;
-      const h = screenH / zoom;
+      const h = (screenH / zoom) / 0.75; // Compensar scaleY(0.75) — área visível é maior em Y
 
       // Movimentação (Teclado ou Mouse) - Ajustada para o novo GAME_TILE_PX massivo
       const speed = 220 * (1 + p.agility * 0.04);
@@ -957,7 +957,7 @@ export default function GameCanvas() {
   const baseZoom = windowSize.w < 768 ? 0.65 : 1.0;
   const zoom = baseZoom * cameraZoom;
   const w = windowSize.w / zoom;
-  const h = windowSize.h / zoom;
+  const h = (windowSize.h / zoom) / 0.75; // Compensar scaleY(0.75)
 
   // ── Parallax offsets ──
   const parallaxBgOffsetX = viewportX * 0.3;
@@ -1015,21 +1015,18 @@ export default function GameCanvas() {
       </div>
 
       <div style={{
-        perspective: '1200px',
-        perspectiveOrigin: '50% 40%',
         position: 'absolute',
         inset: 0,
         zIndex: 1,
         overflow: 'hidden',
       }}>
         <div style={{
-          transform: `scale(${zoom}) rotateX(25deg)`,
-          transformOrigin: '50% 50%',
-          transformStyle: 'preserve-3d',
+          transform: `scale(${zoom}) scaleY(0.75)`,
+          transformOrigin: 'center center',
           width: w,
-          height: h,
+          height: h / 0.75,
           position: 'absolute',
-          top: 0, left: 0,
+          top: `${-(h / 0.75 - h) / 2}px`, left: 0,
         }}>
         {/* Dust Motes (Atmosfera) */}
         {Array.from({ length: 15 }).map((_, i) => (
@@ -1052,12 +1049,12 @@ export default function GameCanvas() {
           }} />
         )}
 
-        {/* ── MAPA REAL: ruas pós-apocalípticas em SVG/CSS ── */}
+        {/* ── MAPA REAL: ruas pós-apocalípticas em SVG ── */}
         <StreetMap
           viewportX={viewportX}
           viewportY={viewportY}
           screenW={w}
-          screenH={h}
+          screenH={h / 0.75}
           originTileX={originTileRef.current.x}
           originTileY={originTileRef.current.y}
           playerLat={player.last_lat || 0}
@@ -1133,10 +1130,32 @@ export default function GameCanvas() {
         })}
 
         {/* ── ITENS NO CHÃO ── */}
+
+      {/* ══ ILUMINAÇÃO SOLAR ══ */}
+      {/* Sol — luz direcional quente vindo do canto superior esquerdo */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 8,
+        background: 'radial-gradient(ellipse at 15% 10%, rgba(255,220,140,0.12) 0%, rgba(255,180,80,0.06) 30%, transparent 70%)',
+        mixBlendMode: 'screen',
+      }} />
+
+      {/* Luz ambiente quente (simulando scattering atmosférico) */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 8,
+        background: 'linear-gradient(160deg, rgba(255,200,120,0.06) 0%, transparent 40%, rgba(180,140,80,0.03) 100%)',
+        mixBlendMode: 'overlay',
+      }} />
+
+      {/* Sombra do sol — escurece o lado oposto ao sol */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
+        background: 'radial-gradient(ellipse at 85% 90%, rgba(0,0,10,0.2) 0%, transparent 60%)',
+      }} />
+
       {/* ── Vinheta ambiente pós-apocalipse ── */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
-        background: 'radial-gradient(ellipse at center, transparent 55%, rgba(5,3,2,0.55) 100%)',
+        background: 'radial-gradient(ellipse at 40% 35%, transparent 50%, rgba(5,3,2,0.5) 100%)',
       }} />
 
       {/* ── Scanlines ── */}
