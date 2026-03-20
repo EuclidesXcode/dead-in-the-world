@@ -114,6 +114,10 @@ interface GameState {
   // Camera Zoom
   cameraZoom: number;
   setCameraZoom: (zoom: number) => void;
+
+  // Camera Shake
+  cameraShake: { intensity: number; duration: number; startTime: number };
+  triggerCameraShake: (intensity: number, duration: number) => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -284,4 +288,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   // Camera Zoom
   cameraZoom: 1,
   setCameraZoom: (cameraZoom) => set({ cameraZoom }),
+
+  // Camera Shake
+  cameraShake: { intensity: 0, duration: 0, startTime: 0 },
+  triggerCameraShake: (intensity, duration) => set({ cameraShake: { intensity, duration, startTime: Date.now() } }),
 }));

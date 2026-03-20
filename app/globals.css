@@ -682,3 +682,70 @@ html, body {
 .anim-float {
   animation: float 3s ease-in-out infinite;
 }
+
+/* ================================================
+   PARALLAX CAMERA SYSTEM
+   Camadas de profundidade para efeito de câmera
+   ================================================ */
+
+/* ── Background Layer: Neblina distante ── */
+@keyframes parallax-fog-drift {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+  25% { transform: translate(40px, -15px) scale(1.05); opacity: 0.4; }
+  50% { transform: translate(20px, 10px) scale(0.95); opacity: 0.25; }
+  75% { transform: translate(-30px, -5px) scale(1.02); opacity: 0.35; }
+  100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+}
+
+.parallax-fog-cloud {
+  filter: blur(20px);
+  mix-blend-mode: screen;
+}
+
+/* ── Estrelas/Luzes distantes ── */
+@keyframes parallax-star-flicker {
+  0% { opacity: 0.05; transform: scale(1); }
+  50% { opacity: 0.2; transform: scale(1.5); }
+  100% { opacity: 0.05; transform: scale(1); }
+}
+
+/* ── Foreground Layer: Cinzas e brasas ── */
+@keyframes parallax-ash-float {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(30px, -60px) rotate(180deg);
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(-20px, -120px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.parallax-ash {
+  filter: blur(0.3px);
+}
+
+/* ── Camera Shake feedback visual ── */
+.game-canvas {
+  transition: filter 0.1s ease;
+}
+
+/* ── Vinheta com efeito de lente (depth of field fake) ── */
+.parallax-bg-layer {
+  filter: blur(1px);
+}
+
+.parallax-fg-layer {
+  filter: blur(0.5px);
+  mix-blend-mode: screen;
+}

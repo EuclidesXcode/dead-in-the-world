@@ -82,6 +82,8 @@ export default function GameCanvas() {
     setEquippedWeapon,
     activeWeaponSlot, setActiveWeaponSlot,
     cameraZoom,
+    cameraShake,
+    triggerCameraShake,
   } = useGameStore();
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -92,6 +94,11 @@ export default function GameCanvas() {
   const originTileRef = useRef({ x: 0, y: 0 });
   const mousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const isMouseMovingRef = useRef(false);
+
+  // ── Camera Parallax: posição suavizada da câmera ──
+  const cameraPosRef = useRef({ x: 0, y: 0 });
+  const cameraInitializedRef = useRef(false);
+  const cameraShakeOffsetRef = useRef({ x: 0, y: 0 });
   const animFrameRef = useRef<number>(0);
   const spawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -435,17 +442,22 @@ export default function GameCanvas() {
 
        // Projétil
        const projId = crypto.randomUUID();
-       setProjectiles(prev => [...prev.slice(-30), {
-         id: projId, sx: px, sy: py, tx: targetX, ty: targetY, progress: 0,
-         size: 8, type: 'grenade',
-       }]);
+        setProjectiles(prev => [...prev.slice(-30), {
+          id: projId, sx: px, sy: py, tx: targetX, ty: targetY, progress: 0,
+          size: 8, type: 'grenade',
+        }]);
+
+        // Camera shake leve no lançamento
+        triggerCameraShake(3, 0.15);
 
        // Explode depois de meio seg.
        setTimeout(() => {
-          audioSystem?.playShootSound(); // placeholder expl.
-          const radius = grenade.stats?.explosion_radius || 120;
-          const damage = grenade.stats?.damage || 250;
-          
+           audioSystem?.playShootSound(); // placeholder expl.
+           const radius = grenade.stats?.explosion_radius || 120;
+           const damage = grenade.stats?.damage || 250;
+           
+           // Camera shake forte na explosão
+           triggerCameraShake(12, 0.4);
           addDamageNumber({ x: targetX - state.viewportX, y: targetY - state.viewportY - 40, damage: damage, isCrit: true });
           
           const hitTargets = findTargetsAtPosition(targetX, targetY, radius, 30);
@@ -693,7 +705,13 @@ export default function GameCanvas() {
           // Ataca player
           const dmg = calculateZombieDamage(zombie as any, p);
           const newHp = Math.max(0, p.current_health - dmg * dt);
-          if (Math.abs(newHp - p.current_health) > 0.05) updatePlayerStats({ current_health: newHp });
+          if (Math.abs(newHp - p.current_health) > 0.05) {
+            updatePlayerStats({ current_health: newHp });
+            // Camera shake sutil ao tomar dano
+            if (dmg * dt > 1) {
+              useGameStore.getState().triggerCameraShake(Math.min(6, dmg * dt * 0.5), 0.15);
+            }
+          }
         } else {
           // Move em direção ao player
           const ddx = (px - zombie.pos_x) / d;
@@ -826,8 +844,39 @@ export default function GameCanvas() {
         }
       }
 
+      // ── Camera Parallax: Lerp suave ──
+      const targetCamX = px - w / 2;
+      const targetCamY = py - h / 2;
+
+      if (!cameraInitializedRef.current) {
+        cameraPosRef.current = { x: targetCamX, y: targetCamY };
+        cameraInitializedRef.current = true;
+      } else {
+        // Lerp factor: quanto maior, mais responsivo (0.08 = suave, 0.2 = rígido)
+        const lerpFactor = moving ? 0.12 : 0.08;
+        cameraPosRef.current.x += (targetCamX - cameraPosRef.current.x) * lerpFactor;
+        cameraPosRef.current.y += (targetCamY - cameraPosRef.current.y) * lerpFactor;
+      }
+
+      // ── Camera Shake ──
+      const shakeState = useGameStore.getState().cameraShake;
+      const shakeElapsed = (now - shakeState.startTime) / 1000;
+      if (shakeElapsed < shakeState.duration && shakeState.intensity > 0) {
+        const decay = 1 - (shakeElapsed / shakeState.duration); // de 1 → 0
+        const freq = 25; // frequência do tremor
+        cameraShakeOffsetRef.current = {
+          x: Math.sin(shakeElapsed * freq * 6.28) * shakeState.intensity * decay * (Math.random() * 0.4 + 0.8),
+          y: Math.cos(shakeElapsed * freq * 4.71) * shakeState.intensity * decay * (Math.random() * 0.4 + 0.8),
+        };
+      } else {
+        cameraShakeOffsetRef.current = { x: 0, y: 0 };
+      }
+
+      const finalCamX = cameraPosRef.current.x + cameraShakeOffsetRef.current.x;
+      const finalCamY = cameraPosRef.current.y + cameraShakeOffsetRef.current.y;
+
       // Viewport
-      setViewport(px - w / 2, py - h / 2);
+      setViewport(finalCamX, finalCamY);
 
       // Mobile Auto-actions
       if (w < 768) {
@@ -910,6 +959,12 @@ export default function GameCanvas() {
   const w = windowSize.w / zoom;
   const h = windowSize.h / zoom;
 
+  // ── Parallax offsets ──
+  const parallaxBgOffsetX = viewportX * 0.3;
+  const parallaxBgOffsetY = viewportY * 0.3;
+  const parallaxFgOffsetX = viewportX * 1.3;
+  const parallaxFgOffsetY = viewportY * 1.3;
+
   return (
     <div
       ref={canvasRef}
@@ -917,13 +972,56 @@ export default function GameCanvas() {
       onClick={handleCanvasClick}
       style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#12110a' }}
     >
+      {/* ══════ PARALLAX LAYER: BACKGROUND (0.3x) — neblina/nuvens distantes ══════ */}
+      <div className="parallax-bg-layer" style={{
+        position: 'absolute',
+        inset: '-20%',
+        width: '140%',
+        height: '140%',
+        transform: `translate(${-parallaxBgOffsetX % 800}px, ${-parallaxBgOffsetY % 600}px)`,
+        pointerEvents: 'none',
+        zIndex: 0,
+        willChange: 'transform',
+      }}>
+        {/* Nuvens de neblina distante */}
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={`fog-${i}`} className="parallax-fog-cloud" style={{
+            position: 'absolute',
+            left: `${(i * 17.5) % 100}%`,
+            top: `${(i * 13.3 + 5) % 90}%`,
+            width: 200 + (i % 3) * 80,
+            height: 80 + (i % 2) * 40,
+            background: `radial-gradient(ellipse, rgba(${20 + i * 3},${15 + i * 2},${8 + i},${0.15 + (i % 3) * 0.05}) 0%, transparent 70%)`,
+            borderRadius: '50%',
+            animationDelay: `${i * 2.5}s`,
+            animation: `parallax-fog-drift ${30 + i * 5}s infinite linear alternate`,
+          }} />
+        ))}
+        {/* Estrelas distantes / pontos de luz */}
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={`star-${i}`} style={{
+            position: 'absolute',
+            left: `${(i * 8.7 + 3) % 95}%`,
+            top: `${(i * 11.3 + 2) % 88}%`,
+            width: 2 + (i % 3),
+            height: 2 + (i % 3),
+            background: `rgba(255,${180 + i * 5},${80 + i * 10},${0.08 + (i % 4) * 0.03})`,
+            borderRadius: '50%',
+            boxShadow: `0 0 ${4 + i % 3}px rgba(255,${150 + i * 5},50,${0.1 + (i % 3) * 0.05})`,
+            animation: `parallax-star-flicker ${3 + i * 0.7}s infinite ease-in-out alternate`,
+            animationDelay: `${i * 0.4}s`,
+          }} />
+        ))}
+      </div>
+
       <div style={{
         transform: `scale(${zoom})`,
         transformOrigin: 'top left',
         width: w,
         height: h,
         position: 'absolute',
-        top: 0, left: 0
+        top: 0, left: 0,
+        zIndex: 1,
       }}>
         {/* Dust Motes (Atmosfera) */}
         {Array.from({ length: 15 }).map((_, i) => (
@@ -1193,6 +1291,36 @@ export default function GameCanvas() {
             }
           </span>
         </div>
+      </div>
+
+      {/* ══════ PARALLAX LAYER: FOREGROUND (1.3x) — cinzas/brasas flutuantes ══════ */}
+      <div className="parallax-fg-layer" style={{
+        position: 'absolute',
+        inset: '-10%',
+        width: '120%',
+        height: '120%',
+        transform: `translate(${-(parallaxFgOffsetX - viewportX) % 600}px, ${-(parallaxFgOffsetY - viewportY) % 400}px)`,
+        pointerEvents: 'none',
+        zIndex: 200,
+        willChange: 'transform',
+      }}>
+        {/* Cinzas flutuantes */}
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div key={`ash-${i}`} className="parallax-ash" style={{
+            position: 'absolute',
+            left: `${(i * 5.3) % 100}%`,
+            top: `${(i * 7.1 + 3) % 95}%`,
+            width: 2 + (i % 3),
+            height: 1 + (i % 2),
+            background: i % 3 === 0 
+              ? `rgba(255,${120 + i * 8},${30 + i * 5},${0.3 + (i % 4) * 0.1})`  // brasa
+              : `rgba(${120 + i * 5},${100 + i * 3},${80 + i * 2},${0.2 + (i % 3) * 0.08})`,  // cinza
+            borderRadius: i % 3 === 0 ? '50%' : '1px',
+            boxShadow: i % 3 === 0 ? `0 0 4px rgba(255,${100 + i * 5},0,0.4)` : 'none',
+            animation: `parallax-ash-float ${6 + i * 1.2}s infinite ease-in-out`,
+            animationDelay: `${i * 0.7}s`,
+          }} />
+        ))}
       </div>
 
       {/* ── Atribuição OSM (obrigatória por licença) ── */}
