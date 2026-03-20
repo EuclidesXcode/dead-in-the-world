@@ -23,7 +23,17 @@ interface VisualProjectile {
   progress: number;
   size?: number;
   type?: string;
+  speed?: number;
 }
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const moveTowards = (current: number, target: number, maxDelta: number) => {
+  if (current < target) return Math.min(current + maxDelta, target);
+  if (current > target) return Math.max(current - maxDelta, target);
+  return target;
+};
+const depthScale = (screenY: number, screenH: number, min = 0.9, max = 1.12) =>
+  clamp(min + (screenY / Math.max(screenH, 1)) * (max - min), min, max);
 
 export function useWindowSize() {
   const [size, setSize] = useState({ w: 800, h: 600 });
@@ -91,6 +101,7 @@ export default function GameCanvas() {
   const lastUpdateRef = useRef(Date.now());
   const lastAttackRef = useRef(0);
   const playerPosRef = useRef({ x: 0, y: 0 });
+  const playerVelocityRef = useRef({ x: 0, y: 0 });
   const originTileRef = useRef({ x: 0, y: 0 });
   const mousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const isMouseMovingRef = useRef(false);
@@ -149,7 +160,7 @@ export default function GameCanvas() {
 
   // ── Limpeza de itens em zonas proibidas (prédios) ──
   useEffect(() => {
-    if (status !== 'ready') return;
+    if (!player || tiles.size === 0) return;
     const cleanupItems = () => {
       const state = useGameStore.getState();
       const invalidItems = state.worldItems.filter(item => !isPointOnWalkableRoad(item.pos_x, item.pos_y));
@@ -160,7 +171,7 @@ export default function GameCanvas() {
     // Executa após um pequeno delay para garantir que o SVG carregou
     const timer = setTimeout(cleanupItems, 2000);
     return () => clearTimeout(timer);
-  }, [status, tiles.size]);
+  }, [player?.id, tiles.size, removeWorldItem]);
 
 
   // ── Teclado (WASD + Novas Teclas) ──
@@ -770,19 +781,64 @@ export default function GameCanvas() {
       const w = screenW / zoom;
       const h = (screenH / zoom) / 0.75; // Compensar scaleY(0.75) — área visível é maior em Y
 
-      // Movimentação (Teclado ou Mouse) - Ajustada para o novo GAME_TILE_PX massivo
-      const speed = 220 * (1 + p.agility * 0.04);
-      let dx = 0, dy = 0;
+      // Movimentação com aceleração e desaceleração para evitar resposta seca.
+      const baseSpeed = 220 * (1 + p.agility * 0.04);
+      let inputX = 0, inputY = 0;
 
       if (!showInventory) {
         const keys = keysRef.current;
-        if (keys.has('KeyW') || keys.has('ArrowUp')) dy -= 1;
-        if (keys.has('KeyS') || keys.has('ArrowDown')) dy += 1;
-        if (keys.has('KeyA') || keys.has('ArrowLeft')) dx -= 1;
-        if (keys.has('KeyD') || keys.has('ArrowRight')) dx += 1;
+        if (keys.has('KeyW') || keys.has('ArrowUp')) inputY -= 1;
+        if (keys.has('KeyS') || keys.has('ArrowDown')) inputY += 1;
+        if (keys.has('KeyA') || keys.has('ArrowLeft')) inputX -= 1;
+        if (keys.has('KeyD') || keys.has('ArrowRight')) inputX += 1;
       }
 
-      const moving = dx !== 0 || dy !== 0;
+      const keys = keysRef.current;
+      const hasMovementInput = inputX !== 0 || inputY !== 0;
+      const wantsSprint = hasMovementInput && !showInventory && (keys.has('ShiftLeft') || keys.has('ShiftRight')) && p.current_stamina > 5;
+      const targetSpeed = wantsSprint ? baseSpeed * 1.85 : baseSpeed;
+      const inputLength = hasMovementInput ? Math.hypot(inputX, inputY) : 1;
+      const targetVelX = hasMovementInput ? (inputX / inputLength) * targetSpeed : 0;
+      const targetVelY = hasMovementInput ? (inputY / inputLength) * targetSpeed : 0;
+      const accelRate = wantsSprint ? 2400 : 1800;
+      const decelRate = 2100;
+
+      playerVelocityRef.current.x = moveTowards(
+        playerVelocityRef.current.x,
+        targetVelX,
+        (hasMovementInput ? accelRate : decelRate) * dt
+      );
+      playerVelocityRef.current.y = moveTowards(
+        playerVelocityRef.current.y,
+        targetVelY,
+        (hasMovementInput ? accelRate : decelRate) * dt
+      );
+
+      let stepX = playerVelocityRef.current.x * dt;
+      let stepY = playerVelocityRef.current.y * dt;
+
+      if (!process.env.NEXT_PUBLIC_IGNORE_COLLISION) {
+        const pxBase = playerPosRef.current.x;
+        const pyBase = playerPosRef.current.y;
+        const canMoveDiagonal = isPointOnWalkableRoad(pxBase + stepX, pyBase + stepY + 10);
+        if (canMoveDiagonal) {
+          playerPosRef.current.x += stepX;
+          playerPosRef.current.y += stepY;
+        } else {
+          const canMoveX = isPointOnWalkableRoad(pxBase + stepX, pyBase + 10);
+          const canMoveY = isPointOnWalkableRoad(pxBase, pyBase + stepY + 10);
+          if (canMoveX) playerPosRef.current.x += stepX;
+          else playerVelocityRef.current.x = 0;
+          if (canMoveY) playerPosRef.current.y += stepY;
+          else playerVelocityRef.current.y = 0;
+        }
+      } else {
+        playerPosRef.current.x += stepX;
+        playerPosRef.current.y += stepY;
+      }
+
+      const currentSpeed = Math.hypot(playerVelocityRef.current.x, playerVelocityRef.current.y);
+      const moving = currentSpeed > 18;
       setIsMoving(moving);
 
       // Facing direction
@@ -791,41 +847,14 @@ export default function GameCanvas() {
         const mdy = (mousePosRef.current.y / zoom) - h / 2;
         setPlayerDir((Math.atan2(mdy, mdx) * 180 / Math.PI + 360) % 360);
       } else if (moving) {
-        setPlayerDir((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360);
+        setPlayerDir((Math.atan2(playerVelocityRef.current.y, playerVelocityRef.current.x) * 180 / Math.PI + 360) % 360);
       }
 
-      const keys = keysRef.current;
-      let isSprinting = moving && !showInventory && (keys.has('ShiftLeft') || keys.has('ShiftRight')) && p.current_stamina > 5;
-      const finalSpeed = isSprinting ? speed * 1.8 : speed;
-
+      const isSprinting = wantsSprint && currentSpeed > baseSpeed * 1.15;
       if (moving) {
-        const len = Math.sqrt(dx * dx + dy * dy);
-        let stepX = (dx / len) * finalSpeed * dt;
-        let stepY = (dy / len) * finalSpeed * dt;
-
-        // Collision Check: SVG Natively with isPointOnWalkableRoad
-        let moveAllowed = true;
-        if (!process.env.NEXT_PUBLIC_IGNORE_COLLISION) {
-           const pxBase = playerPosRef.current.x;
-           const pyBase = playerPosRef.current.y;
-           const targetX = pxBase + stepX;
-           const targetY = pyBase + stepY + 10;
-           
-           moveAllowed = isPointOnWalkableRoad(targetX, targetY);
-           
-           if (!moveAllowed) {
-              if (isPointOnWalkableRoad(targetX, pyBase + 10)) { stepY = 0; moveAllowed = true; }
-              else if (isPointOnWalkableRoad(pxBase, targetY)) { stepX = 0; moveAllowed = true; }
-           }
-        }
-
-        if (moveAllowed) {
-          playerPosRef.current.x += stepX;
-          playerPosRef.current.y += stepY;
-          const staminaConsumption = isSprinting ? dt * 25 : dt * 5;
-          const newStamina = Math.max(0, p.current_stamina - staminaConsumption);
-          if (newStamina !== p.current_stamina) updatePlayerStats({ current_stamina: newStamina });
-        }
+        const staminaConsumption = isSprinting ? dt * 24 : dt * 4;
+        const newStamina = Math.max(0, p.current_stamina - staminaConsumption);
+        if (Math.abs(newStamina - p.current_stamina) > 0.05) updatePlayerStats({ current_stamina: newStamina });
       } else {
         const newStamina = Math.min(p.max_stamina, p.current_stamina + dt * 10);
         if (Math.abs(newStamina - p.current_stamina) > 0.1) updatePlayerStats({ current_stamina: newStamina });
@@ -836,7 +865,7 @@ export default function GameCanvas() {
       setPlayerPixel(px, py);
 
       // Atualiza lat/lng real quando move
-      if (moving && originTileRef.current) {
+      if (currentSpeed > 10 && originTileRef.current) {
         const { lat, lng } = worldPixelToLatLng(px, py, originTileRef.current.x, originTileRef.current.y);
         // Só atualiza o estado zustand se a distância for significativa para não engasgar a thread
         if (Math.abs(p.last_lat - lat) > 0.00005 || Math.abs(p.last_lng - lng) > 0.00005) {
@@ -845,15 +874,15 @@ export default function GameCanvas() {
       }
 
       // ── Camera Parallax: Lerp suave ──
-      const targetCamX = px - w / 2;
-      const targetCamY = py - h / 2;
+      const targetCamX = px - w / 2 + clamp(playerVelocityRef.current.x * 0.18, -70, 70);
+      const targetCamY = py - h / 2 + clamp(playerVelocityRef.current.y * 0.12, -45, 45);
 
       if (!cameraInitializedRef.current) {
         cameraPosRef.current = { x: targetCamX, y: targetCamY };
         cameraInitializedRef.current = true;
       } else {
         // Lerp factor: quanto maior, mais responsivo (0.08 = suave, 0.2 = rígido)
-        const lerpFactor = moving ? 0.12 : 0.08;
+        const lerpFactor = moving ? 0.16 : 0.1;
         cameraPosRef.current.x += (targetCamX - cameraPosRef.current.x) * lerpFactor;
         cameraPosRef.current.y += (targetCamY - cameraPosRef.current.y) * lerpFactor;
       }
@@ -937,7 +966,7 @@ export default function GameCanvas() {
       setProjectiles(prev => {
         if (prev.length === 0) return prev;
         return prev
-          .map(pj => ({ ...pj, progress: pj.progress + dt * 4.5 })) // Um pouco mais lento (era 6)
+          .map(pj => ({ ...pj, progress: pj.progress + dt * (pj.speed ?? 4.5) }))
           .filter(pj => pj.progress < 1);
       });
 
@@ -964,6 +993,39 @@ export default function GameCanvas() {
   const parallaxBgOffsetY = viewportY * 0.3;
   const parallaxFgOffsetX = viewportX * 1.3;
   const parallaxFgOffsetY = viewportY * 1.3;
+  const playerVelocity = playerVelocityRef.current;
+  const playerMotion = Math.hypot(playerVelocity.x, playerVelocity.y);
+  const playerMotionRatio = clamp(playerMotion / (280 + player.agility * 12), 0, 1);
+  const sceneLeanX = clamp(playerVelocity.y * 0.008, -4, 4);
+  const sceneLeanY = clamp(playerVelocity.x * -0.01, -6, 6);
+  const sceneTranslateX = clamp(playerVelocity.x * -0.025, -16, 16);
+  const sceneTranslateY = clamp(playerVelocity.y * -0.02, -12, 12);
+  const visibleItems = worldItems
+    .filter((item) => {
+      const sx = item.pos_x - viewportX;
+      const sy = item.pos_y - viewportY;
+      return !(sx < -60 || sx > w + 60 || sy < -60 || sy > h + 60);
+    })
+    .sort((a, b) => a.pos_y - b.pos_y);
+  const visibleZombies = Array.from(zombies.values())
+    .filter((zombie) => {
+      const sx = zombie.pos_x - viewportX;
+      const sy = zombie.pos_y - viewportY;
+      return !(sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100);
+    })
+    .sort((a, b) => a.pos_y - b.pos_y);
+  const visiblePlayers = onlinePlayers
+    .filter((op) => op.id !== player.id && !!op.last_lat && !!op.last_lng)
+    .map((op) => {
+      const { pixelX: opX, pixelY: opY } = playerWorldPixelFromLatLng(op.last_lat!, op.last_lng!);
+      return { op, opX, opY };
+    })
+    .filter(({ opX, opY }) => {
+      const sx = opX - viewportX;
+      const sy = opY - viewportY;
+      return !(sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100);
+    })
+    .sort((a, b) => a.opY - b.opY);
 
   return (
     <div
@@ -1019,9 +1081,10 @@ export default function GameCanvas() {
         inset: 0,
         zIndex: 1,
         overflow: 'hidden',
+        perspective: '1600px',
       }}>
         <div style={{
-          transform: `scale(${zoom}) scaleY(0.75)`,
+          transform: `translate(${sceneTranslateX}px, ${sceneTranslateY}px) rotateX(${sceneLeanX}deg) rotateZ(${sceneLeanY}deg) scale(${zoom * (1 + playerMotionRatio * 0.015)}) scaleY(${0.75 - playerMotionRatio * 0.025})`,
           transformOrigin: 'center center',
           width: w,
           height: h / 0.75,
@@ -1162,10 +1225,10 @@ export default function GameCanvas() {
       <div className="scanlines" style={{ zIndex: 11 }} />
 
       {/* ── Items ── */}
-      {useGameStore.getState().worldItems.map((item) => {
+      {visibleItems.map((item) => {
         const sx = item.pos_x - viewportX;
         const sy = item.pos_y - viewportY;
-        if (sx < -60 || sx > w + 60 || sy < -60 || sy > h + 60) return null;
+        const itemScale = depthScale(sy, h, 0.88, 1.08);
         return (
           <div key={item.id} style={{
             position: 'absolute', left: sx - 14, top: sy - 14,
@@ -1176,7 +1239,9 @@ export default function GameCanvas() {
             fontSize: 14, borderRadius: 2,
             animation: 'anim-item-float 2.5s infinite ease-in-out',
             boxShadow: `0 0 10px ${rarityColor(item.rarity)}66`,
-            zIndex: 55,
+            transform: `scale(${itemScale})`,
+            transformOrigin: 'center bottom',
+            zIndex: 55 + Math.round(sy),
           }}>
             {itemEmoji(item.item_id)}
           </div>
@@ -1184,13 +1249,20 @@ export default function GameCanvas() {
       })}
 
       {/* ── Zumbis ── */}
-      {Array.from(zombies.values()).map((zombie) => {
+      {visibleZombies.map((zombie) => {
         const sx = zombie.pos_x - viewportX;
         const sy = zombie.pos_y - viewportY;
-        if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return null;
         const isTarget = currentTarget === zombie.id;
+        const zombieScale = depthScale(sy, h, 0.9, 1.1);
         return (
-          <div key={zombie.id} style={{ position: 'absolute', left: sx - 16, top: sy - 44, zIndex: 80 }}>
+          <div key={zombie.id} style={{
+            position: 'absolute',
+            left: sx - 16,
+            top: sy - 44,
+            zIndex: 80 + Math.round(sy),
+            transform: `scale(${zombieScale})`,
+            transformOrigin: 'center bottom',
+          }}>
             {/* Marcador de alvo */}
             {isTarget && (
               <div style={{
@@ -1215,18 +1287,23 @@ export default function GameCanvas() {
       })}
 
       {/* ── Outros jogadores online ── */}
-      {onlinePlayers.map((op) => {
-        if (op.id === player.id || !op.last_lat || !op.last_lng) return null;
-        const { pixelX: opX, pixelY: opY } = playerWorldPixelFromLatLng(op.last_lat, op.last_lng);
+      {visiblePlayers.map(({ op, opX, opY }) => {
         const sx = opX - viewportX;
         const sy = opY - viewportY;
-        if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return null;
+        const remoteScale = depthScale(sy, h, 0.92, 1.1);
         
         // Parse styles for other player
         const opCustomStyles = op.custom_css ? parseCustomCSS(op.custom_css) : {};
 
         return (
-          <div key={op.id} style={{ position: 'absolute', left: sx - 16, top: sy - 44, zIndex: 90 }}>
+          <div key={op.id} style={{
+            position: 'absolute',
+            left: sx - 16,
+            top: sy - 44,
+            zIndex: 90 + Math.round(sy),
+            transform: `scale(${remoteScale})`,
+            transformOrigin: 'center bottom',
+          }}>
             <PlayerSprite
               skinColor={op.skin_color} hairColor={op.hair_color}
               shirtColor={op.shirt_color} pantsColor={op.pants_color}
@@ -1243,7 +1320,9 @@ export default function GameCanvas() {
         position: 'absolute',
         left: playerPixelX - viewportX - 16,
         top: playerPixelY - viewportY - 44,
-        zIndex: 100,
+        zIndex: 100 + Math.round(playerPixelY - viewportY),
+        transform: `translateY(${clamp(-playerMotionRatio * 6, -6, 0)}px) scale(${depthScale(playerPixelY - viewportY, h, 0.94, 1.12)})`,
+        transformOrigin: 'center bottom',
       }}>
         <PlayerSprite
           skinColor={player.skin_color} hairColor={player.hair_color}
