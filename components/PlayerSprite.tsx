@@ -2,8 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useGameStore } from '@/lib/store';
 
 // ──────────────────────────────────────────────────────
-//  PLAYER CSS SPRITE — estilo retro pixel art (GTA 1 / Mario)
-//  Desenhado 100% com div CSS, sem imagens externas
+//  PLAYER CSS SPRITE — Visão isométrica 3/4 (perspectiva ~75°)
+//  Estilo refinado com iluminação direcional e volume
 // ──────────────────────────────────────────────────────
 
 interface PlayerSpriteProps {
@@ -11,14 +11,14 @@ interface PlayerSpriteProps {
   hairColor?: string;
   shirtColor?: string;
   pantsColor?: string;
-  direction?: number; // ângulo em graus
+  direction?: number;
   isMoving?: boolean;
   isAttacking?: boolean;
-  health?: number;     // 0-100
+  health?: number;
   maxHealth?: number;
   showHealthBar?: boolean;
   scale?: number;
-  isLocal?: boolean;   // jogador local tem borda diferente
+  isLocal?: boolean;
   username?: string;
   nameColor?: string;
   customStyles?: Record<string, React.CSSProperties>;
@@ -56,24 +56,27 @@ export default function PlayerSprite({
     prevHealthRef.current = health;
   }, [health]);
 
-  // Calcular flip baseado em direção (espelha o sprite)
   const facingLeft = direction > 90 && direction < 270;
   const scaleX = facingLeft ? -1 : 1;
-
   const baseAnim = isMoving ? 'anim-walk-bounce' : 'anim-idle-breath';
   const hurtAnim = hurtState ? 'anim-hurt' : '';
-  
-  // Inclinação rítmica ao mover
-  const tilt = isMoving ? (facingLeft ? -8 : 8) : 0;
+  const tilt = isMoving ? (facingLeft ? -5 : 5) : 0;
 
   const healthPercent = Math.max(0, Math.min(100, (health / maxHealth) * 100));
   const healthColor = healthPercent > 60 ? '#22c55e' : healthPercent > 30 ? '#f59e0b' : '#dc2626';
+
+  // Cores derivadas para shading
+  const skinShadow = darkenColor(skinColor, 25);
+  const skinHighlight = lightenColor(skinColor, 15);
+  const shirtShadow = darkenColor(shirtColor, 30);
+  const shirtHighlight = lightenColor(shirtColor, 12);
+  const pantsShadow = darkenColor(pantsColor, 25);
 
   return (
     <div
       style={{
         position: 'relative',
-        width: 32 * scale,
+        width: 36 * scale,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -83,20 +86,21 @@ export default function PlayerSprite({
         ...customStyles.container
       }}
     >
-      {/* ── Username (não espelha junto) ── */}
+      {/* ── Username (não espelha) ── */}
       {username && (
         <div
           style={{
             position: 'absolute',
-            top: -22,
+            top: -24,
             left: '50%',
             transform: `translateX(-50%) scaleX(${scaleX})`,
             whiteSpace: 'nowrap',
             fontSize: 7,
             fontFamily: "'Press Start 2P', monospace",
             color: customStyles.username?.color || nameColor || (isLocal ? '#39ff14' : '#fff'),
-            textShadow: '1px 1px 0 #000, -1px -1px 0 #000',
+            textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000',
             pointerEvents: 'none',
+            zIndex: 20,
             ...customStyles.username
           }}
         >
@@ -109,290 +113,337 @@ export default function PlayerSprite({
         <div
           style={{
             position: 'absolute',
-            top: -12,
+            top: -14,
             left: '50%',
             transform: `translateX(-50%) scaleX(${scaleX})`,
-            width: 32,
-            height: 3,
-            background: '#000',
-            border: '1px solid #333',
+            width: 34,
+            height: 4,
+            background: 'rgba(0,0,0,0.7)',
+            border: '1px solid #444',
+            borderRadius: 1,
+            zIndex: 20,
             ...customStyles.healthBar
           }}
         >
-          <div style={{ width: `${healthPercent}%`, height: '100%', background: healthColor, transition: 'width 0.3s' }} />
+          <div style={{ width: `${healthPercent}%`, height: '100%', background: healthColor, transition: 'width 0.3s', borderRadius: 1 }} />
         </div>
       )}
 
-      {/* ── Sprite do personagem ── */}
+      {/* ── Sprite do personagem (visão isométrica 3/4) ── */}
       <div
         className={`${baseAnim} ${hurtAnim}`}
         style={{
           position: 'relative',
-          width: 32 * scale,
-          height: 44 * scale,
+          width: 36 * scale,
+          height: 48 * scale,
           imageRendering: 'pixelated',
           transformOrigin: 'bottom center',
           ...customStyles.sprite
         }}
       >
-        {/* ══ CABEÇA (bobbing independente) ══ */}
-        <div className={isMoving ? 'anim-head-bob' : ''} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 12 }}>
-          <Head skinColor={skinColor} hairColor={hairColor} scale={scale} isLocal={isLocal} customStyles={customStyles} isNight={isNight} />
-        </div>
-
-        {/* ══ MOCHILA ══ */}
-        <Backpack scale={scale} color="#3d2b1f" customStyles={customStyles} />
-
-        {/* ══ CORPO ══ */}
-        <Body skinColor={skinColor} shirtColor={shirtColor} pantsColor={pantsColor} scale={scale} isMoving={isMoving} isAttacking={isAttacking} customStyles={customStyles} isNight={isNight} />
-
-        {/* ══ SOMBRA DINÂMICA ══ */}
+        {/* ══ SOMBRA NO CHÃO (Isométrica — elipse achatada) ══ */}
         <div style={{
           position: 'absolute',
-          bottom: -3 * scale,
+          bottom: -2 * s,
           left: '50%',
-          transformOrigin: 'center',
-          transform: `translateX(-50%) scale(${isMoving ? 1.2 : 1})`,
-          width: 22 * scale,
-          height: 5 * scale,
-          background: 'rgba(0,0,0,0.5)',
+          transform: `translateX(-50%) ${isMoving ? 'scale(1.15, 0.7)' : 'scale(1, 0.6)'}`,
+          width: 30 * s,
+          height: 14 * s,
+          background: 'radial-gradient(ellipse, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 60%, transparent 100%)',
           borderRadius: '50%',
-          filter: 'blur(1px)',
           transition: 'transform 0.3s ease',
+          zIndex: 0,
           ...customStyles.shadow
         }} />
-      </div>
-    </div>
-  );
-}
 
-// ── Cabeça detalhada ──
-function Head({ skinColor, hairColor, scale, isLocal, customStyles, isNight }: any) {
-  const s = scale;
-  return (
-    <div style={{ position: 'absolute', top: 0, left: 4 * s, width: 24 * s, height: 18 * s, imageRendering: 'pixelated', ...customStyles.head }}>
-      {/* Base da cabeça com gradiente de pele */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: `linear-gradient(135deg, ${skinColor} 0%, rgba(0,0,0,0.1) 100%), ${skinColor}`,
-        border: `${2 * s}px solid #2a1a0d`,
-        boxShadow: isLocal ? `0 0 12px rgba(57,255,20,0.4)` : 'inset -2px -2px 0 rgba(0,0,0,0.1)',
-        overflow: 'hidden',
-        ...customStyles.headBase
-      }}>
-        {/* Rim Light (Sun) */}
-        {isNight && <div style={{ position: 'absolute', top: 0, left: 0, width: '40%', height: '30%', background: 'rgba(255,200,80,0.5)', filter: 'blur(1px)' }} />}
-      </div>
-      {/* Cabelo com mechas */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 8 * s,
-        background: hairColor,
-        borderBottom: `${s}px solid rgba(0,0,0,0.3)`,
-        ...customStyles.hair
-      }}>
-        <div style={{ position: 'absolute', top: s, left: 4*s, width: 4*s, height: s, background: 'rgba(255,255,255,0.1)' }} />
-      </div>
-      
-      {/* Lateral do cabelo esquerda */}
-      <div style={{ position: 'absolute', top: 0, left: 0, width: 4 * s, height: 12 * s, background: hairColor, ...customStyles.hairSideL }} />
-      {/* Lateral do cabelo direita */}
-      <div style={{ position: 'absolute', top: 0, right: 0, width: 4 * s, height: 12 * s, background: hairColor, ...customStyles.hairSideR }} />
-
-      {/* Olho esquerdo expressivo */}
-      <div style={{ 
-        position: 'absolute', top: 8 * s, left: 4 * s, width: 6 * s, height: 5 * s, 
-        background: '#fff', border: `${s}px solid #000`, 
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        ...customStyles.eyeL 
-      }}>
-        {/* Pupila */}
-        <div style={{ width: 3 * s, height: 3 * s, background: '#1a1a1a', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 0, right: 0, width: s, height: s, background: '#fff', opacity: 0.8 }} />
-        </div>
-      </div>
-      {/* Olho direito */}
-      <div style={{ 
-        position: 'absolute', top: 8 * s, right: 4 * s, width: 6 * s, height: 5 * s, 
-        background: '#fff', border: `${s}px solid #000`, 
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        ...customStyles.eyeR 
-      }}>
-        <div style={{ width: 3 * s, height: 3 * s, background: '#1a1a1a', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 0, right: 0, width: s, height: s, background: '#fff', opacity: 0.8 }} />
-        </div>
-      </div>
-
-      {/* Sombrancelhas */}
-      <div style={{ position: 'absolute', top: 6 * s, left: 4 * s, width: 6 * s, height: s, background: hairColor, opacity: 0.8 }} />
-      <div style={{ position: 'absolute', top: 6 * s, right: 4 * s, width: 6 * s, height: s, background: hairColor, opacity: 0.8 }} />
-
-      {/* Nariz */}
-      <div style={{ position: 'absolute', top: 11 * s, left: '50%', transform: 'translateX(-50%)', width: 4 * s, height: 2 * s, background: 'rgba(0,0,0,0.25)', borderRadius: s, ...customStyles.nose }} />
-      
-      {/* Boca */}
-      <div style={{ position: 'absolute', bottom: 3 * s, left: 7 * s, width: 10 * s, height: 2 * s, background: '#8B4513', ...customStyles.mouth }}>
-        <div style={{ position: 'absolute', top: 0, left: 3 * s, width: 2 * s, height: s, background: '#fff', opacity: 0.9 }} />
-        <div style={{ position: 'absolute', top: 0, right: 3 * s, width: 2 * s, height: s, background: '#fff', opacity: 0.9 }} />
-      </div>
-    </div>
-  );
-}
-
-// ── Mochila ──
-function Backpack({ scale, color, customStyles }: any) {
-  const s = scale;
-  return (
-    <div style={{
-      position: 'absolute', top: 20 * s, left: -2 * s, width: 12 * s, height: 18 * s,
-      background: color, border: `${2 * s}px solid rgba(0,0,0,0.6)`,
-      borderRadius: '4px 2px 2px 4px',
-      zIndex: 5,
-      ...customStyles.backpack
-    }}>
-      {/* Detalhe alça */}
-      <div style={{ position: 'absolute', top: 4*s, left: 2*s, width: 6*s, height: 2*s, background: 'rgba(255,255,255,0.1)' }} />
-      {/* Zíper */}
-      <div style={{ position: 'absolute', top: 0, right: 2*s, bottom: 0, width: s, background: 'rgba(0,0,0,0.3)' }} />
-    </div>
-  );
-}
-
-
-// ── Corpo detalhado ──
-function Body({ skinColor, shirtColor, pantsColor, scale, isMoving, isAttacking, customStyles, isNight }: any) {
-  const s = scale;
-  // Classes de Animação CSS 
-  const legLeftClass = isMoving ? 'anim-leg-left' : '';
-  const legRightClass = isMoving ? 'anim-leg-right' : '';
-  const armLeftClass = isMoving ? 'anim-arm-left' : '';
-  const recoilClass = isAttacking ? 'anim-recoil' : '';
-
-  return (
-    <>
-      {/* ── Torso / Camisa / Colete ── */}
-      <div style={{
-        position: 'absolute', top: 18 * s, left: 4 * s, width: 24 * s, height: 16 * s,
-        background: shirtColor, border: `${2 * s}px solid rgba(0,0,0,0.7)`,
-        boxShadow: 'inset -3px -3px 0 rgba(0,0,0,0.2)',
-        overflow: 'hidden',
-        ...customStyles.torso
-      }}>
-        {/* Colete Tático Detalhe */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(to right, rgba(0,0,0,0.25) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.25) 100%)',
-          pointerEvents: 'none'
-        }} />
-        {/* Rim Light (Sun) */}
-        {isNight && <div style={{ position: 'absolute', top: 0, left: 0, width: '30%', height: '50%', background: 'rgba(255,200,80,0.4)', filter: 'blur(1.5px)' }} />}
-        
-        {/* Detalhe bolso superior */}
-        <div style={{ position: 'absolute', top: 3 * s, left: 3 * s, width: 8 * s, height: 7 * s, background: 'rgba(0,0,0,0.15)', border: `${s}px solid rgba(255,255,255,0.05)`, borderRadius: 1 }} />
-        
-        {/* Botões/Cinto Peitoral */}
-        <div style={{ position: 'absolute', top: 4 * s, right: 6 * s, width: 3 * s, height: 2 * s, background: '#333' }} />
-        <div style={{ position: 'absolute', top: 9 * s, right: 6 * s, width: 3 * s, height: 2 * s, background: '#333' }} />
-        
-        {/* Sombra inferior suave */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4 * s, background: 'rgba(0,0,0,0.2)' }} />
-      </div>
-
-
-      <div 
-        className={armLeftClass}
-        style={{
-        position: 'absolute', top: 20 * s, left: 0, width: 6 * s, height: 18 * s,
-        background: skinColor, border: `${s}px solid #2a1a0d`,
-        transformOrigin: 'top center',
-        transition: 'transform 0.15s',
-        ...customStyles.armL
-      }}>
-        {/* Mão */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5 * s, background: skinColor, borderRadius: '0 0 2px 2px' }} />
-      </div>
-
-      <div 
-        className={recoilClass}
-        style={{
-        position: 'absolute', top: 20 * s, right: 0, width: 6 * s, height: 18 * s,
-        background: skinColor, border: `${s}px solid #2a1a0d`,
-        transformOrigin: 'top center',
-        transform: 'rotate(0deg)',
-        transition: 'transform 0.05s',
-        zIndex: 5,
-        ...customStyles.armR
-      }}>
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5 * s, background: skinColor, borderRadius: '0 0 2px 2px' }} />
-        {/* Pistola */}
-        <div style={{
-          position: 'absolute', bottom: 3 * s, right: -14 * s,
-          width: 16 * s, height: 7 * s,
-          ...customStyles.weapon
-        }}>
-          {/* Cabo */}
-          <div style={{ position: 'absolute', bottom: 0, left: 0, width: 7 * s, height: 7 * s, background: '#111', border: `${s}px solid #333` }} />
-          {/* Cano */}
-          <div style={{ position: 'absolute', top: 0, left: 2 * s, width: 14 * s, height: 5 * s, background: '#1a1a1a', border: `${s}px solid #444` }}>
-            {/* Mira */}
-            <div style={{ position: 'absolute', top: 0, left: 3 * s, width: 2 * s, height: 2 * s, background: '#444' }} />
+        {/* ══ PERNAS (visão isométrica — perspectiva frontal/superior) ══ */}
+        <div style={{ position: 'absolute', bottom: 2 * s, left: 0, right: 0, zIndex: 2 }}>
+          {/* Perna esquerda */}
+          <div className={isMoving ? 'anim-leg-left' : ''} style={{
+            position: 'absolute', bottom: 0, left: 5 * s,
+            width: 10 * s, height: 14 * s,
+            background: `linear-gradient(135deg, ${pantsColor} 0%, ${pantsShadow} 100%)`,
+            border: `${s}px solid rgba(0,0,0,0.5)`,
+            borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+            transformOrigin: 'top center',
+            ...customStyles.legL
+          }}>
+            {/* Bota */}
+            <div style={{
+              position: 'absolute', bottom: -s, left: -s, right: -s, height: 5 * s,
+              background: 'linear-gradient(180deg, #2a1a0a, #1a0d00)',
+              border: `${s}px solid #333`,
+              borderRadius: `0 0 ${2*s}px ${2*s}px`,
+              ...customStyles.bootL
+            }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: s, background: 'rgba(255,255,255,0.08)' }} />
+            </div>
           </div>
-          {/* Flash de tiro */}
-          {isAttacking && (
-            <div 
-              className="anim-muzzle"
-              style={{
-                position: 'absolute', top: '50%', right: -6 * s,
-                width: 12 * s, height: 12 * s,
-                background: 'radial-gradient(circle, #fff 10%, #ffdf00 40%, rgba(255,100,0,0.4) 70%, transparent 100%)',
-                zIndex: 20
-              }} 
-            />
-          )}
+          {/* Perna direita */}
+          <div className={isMoving ? 'anim-leg-right' : ''} style={{
+            position: 'absolute', bottom: 0, right: 5 * s,
+            width: 10 * s, height: 14 * s,
+            background: `linear-gradient(135deg, ${pantsShadow} 0%, ${pantsColor} 100%)`,
+            border: `${s}px solid rgba(0,0,0,0.5)`,
+            borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+            transformOrigin: 'top center',
+            ...customStyles.legR
+          }}>
+            <div style={{
+              position: 'absolute', bottom: -s, left: -s, right: -s, height: 5 * s,
+              background: 'linear-gradient(180deg, #2a1a0a, #1a0d00)',
+              border: `${s}px solid #333`,
+              borderRadius: `0 0 ${2*s}px ${2*s}px`,
+              ...customStyles.bootR
+            }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: s, background: 'rgba(255,255,255,0.08)' }} />
+            </div>
+          </div>
+        </div>
+
+        {/* ══ TORSO / COLETE TÁTICO ══ */}
+        <div style={{
+          position: 'absolute', top: 16 * s, left: 3 * s, width: 30 * s, height: 18 * s,
+          background: `linear-gradient(160deg, ${shirtHighlight} 0%, ${shirtColor} 40%, ${shirtShadow} 100%)`,
+          border: `${2 * s}px solid rgba(0,0,0,0.6)`,
+          borderRadius: `${3*s}px ${3*s}px ${s}px ${s}px`,
+          zIndex: 4,
+          overflow: 'hidden',
+          ...customStyles.torso
+        }}>
+          {/* Colete tático com gradiente */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `
+              linear-gradient(to right, rgba(0,0,0,0.3) 0%, transparent 15%, transparent 85%, rgba(0,0,0,0.3) 100%),
+              linear-gradient(to bottom, rgba(255,255,255,0.05) 0%, transparent 30%)
+            `,
+          }} />
+          {/* Detalhe bolso */}
+          <div style={{ position: 'absolute', top: 3 * s, left: 3 * s, width: 8 * s, height: 7 * s, background: 'rgba(0,0,0,0.15)', border: `${s}px solid rgba(255,255,255,0.06)`, borderRadius: s }} />
+          {/* Tiras do colete */}
+          <div style={{ position: 'absolute', top: 0, left: '50%', width: s, bottom: 0, background: 'rgba(0,0,0,0.15)' }} />
+          {/* Botões metálicos */}
+          <div style={{ position: 'absolute', top: 4 * s, right: 5 * s, width: 3 * s, height: 2 * s, background: '#555', borderRadius: '50%' }} />
+          <div style={{ position: 'absolute', top: 9 * s, right: 5 * s, width: 3 * s, height: 2 * s, background: '#444', borderRadius: '50%' }} />
+          {/* Sombra inferior do peito */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4 * s, background: 'linear-gradient(transparent, rgba(0,0,0,0.25))' }} />
+          {/* Rim light noturno */}
+          {isNight && <div style={{ position: 'absolute', top: 0, left: 0, width: '35%', height: '45%', background: 'rgba(255,180,60,0.3)', filter: 'blur(2px)' }} />}
+        </div>
+
+        {/* ══ CINTURÃO ══ */}
+        <div style={{
+          position: 'absolute', top: 33 * s, left: 3 * s, width: 30 * s, height: 3 * s,
+          background: 'linear-gradient(135deg, #2a1a00, #1a0d00)',
+          border: `${s}px solid rgba(80,60,30,0.5)`,
+          zIndex: 5,
+          borderRadius: s,
+        }}>
+          <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: 5 * s, height: 3 * s, background: 'linear-gradient(135deg, #888, #555)', borderRadius: s }} />
+        </div>
+
+        {/* ══ MOCHILA (atrás, visível de cima) ══ */}
+        <div style={{
+          position: 'absolute', top: 18 * s, left: -1 * s, width: 10 * s, height: 16 * s,
+          background: 'linear-gradient(160deg, #4a3525, #3d2b1f)',
+          border: `${2 * s}px solid rgba(0,0,0,0.5)`,
+          borderRadius: `${2*s}px ${s}px ${s}px ${2*s}px`,
+          zIndex: 3,
+          ...customStyles.backpack
+        }}>
+          <div style={{ position: 'absolute', top: 3*s, left: 2*s, width: 5*s, height: 2*s, background: 'rgba(255,255,255,0.08)', borderRadius: s }} />
+          <div style={{ position: 'absolute', top: 0, right: s, bottom: 0, width: s, background: 'rgba(0,0,0,0.2)' }} />
+        </div>
+
+        {/* ══ BRAÇO ESQUERDO (traseiro) ══ */}
+        <div
+          className={isMoving ? 'anim-arm-left' : ''}
+          style={{
+            position: 'absolute', top: 18 * s, left: 0, width: 7 * s, height: 16 * s,
+            background: `linear-gradient(160deg, ${skinHighlight}, ${skinColor}, ${skinShadow})`,
+            border: `${s}px solid rgba(0,0,0,0.4)`,
+            borderRadius: `${2*s}px`,
+            transformOrigin: 'top center',
+            zIndex: 3,
+            ...customStyles.armL
+          }}
+        >
+          <div style={{
+            position: 'absolute', bottom: 0, left: s, right: s, height: 5 * s,
+            background: skinColor, borderRadius: `0 0 ${2*s}px ${2*s}px`,
+          }} />
+        </div>
+
+        {/* ══ BRAÇO DIREITO (arma) ══ */}
+        <div
+          className={isAttacking ? 'anim-recoil' : ''}
+          style={{
+            position: 'absolute', top: 18 * s, right: 0, width: 7 * s, height: 16 * s,
+            background: `linear-gradient(200deg, ${skinColor}, ${skinShadow})`,
+            border: `${s}px solid rgba(0,0,0,0.4)`,
+            borderRadius: `${2*s}px`,
+            transformOrigin: 'top center',
+            zIndex: 8,
+            ...customStyles.armR
+          }}
+        >
+          <div style={{
+            position: 'absolute', bottom: 0, left: s, right: s, height: 5 * s,
+            background: skinColor, borderRadius: `0 0 ${2*s}px ${2*s}px`,
+          }} />
+          {/* ── ARMA ── */}
+          <div style={{
+            position: 'absolute', bottom: 2 * s, right: -14 * s,
+            width: 18 * s, height: 8 * s,
+            zIndex: 9,
+            ...customStyles.weapon
+          }}>
+            {/* Cabo ergonômico */}
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, width: 8 * s, height: 7 * s,
+              background: 'linear-gradient(180deg, #222, #0d0d0d)',
+              border: `${s}px solid #444`,
+              borderRadius: `0 0 ${2*s}px ${s}px`,
+            }} />
+            {/* Cano */}
+            <div style={{
+              position: 'absolute', top: 0, left: 3 * s, width: 15 * s, height: 5 * s,
+              background: 'linear-gradient(180deg, #2a2a2a, #111)',
+              border: `${s}px solid #555`,
+              borderRadius: `${s}px ${2*s}px ${2*s}px ${s}px`,
+            }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: s, background: 'rgba(255,255,255,0.08)' }} />
+              <div style={{ position: 'absolute', top: s, left: 4 * s, width: 2 * s, height: 2 * s, background: '#555' }} />
+            </div>
+            {/* Flash de tiro */}
+            {isAttacking && (
+              <div
+                className="anim-muzzle"
+                style={{
+                  position: 'absolute', top: '30%', right: -8 * s,
+                  width: 14 * s, height: 14 * s,
+                  background: 'radial-gradient(circle, rgba(255,255,255,0.95) 5%, rgba(255,220,0,0.7) 25%, rgba(255,100,0,0.3) 60%, transparent 100%)',
+                  borderRadius: '50%',
+                  zIndex: 20,
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* ══ CABEÇA (visão 3/4 — topo do cabelo mais visível) ══ */}
+        <div className={isMoving ? 'anim-head-bob' : ''} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 12 }}>
+          <div style={{
+            position: 'absolute', top: 0, left: 5 * s, width: 26 * s, height: 18 * s,
+            ...customStyles.head
+          }}>
+            {/* Topo do cabelo (visível de cima — esta é a parte principal na vista isométrica) */}
+            <div style={{
+              position: 'absolute', top: -2 * s, left: -s, right: -s, height: 10 * s,
+              background: `linear-gradient(180deg, ${lightenColor(hairColor, 10)}, ${hairColor})`,
+              borderRadius: `${4*s}px ${4*s}px ${s}px ${s}px`,
+              border: `${s}px solid rgba(0,0,0,0.4)`,
+              zIndex: 2,
+              ...customStyles.hair
+            }}>
+              {/* Brilho no cabelo */}
+              <div style={{ position: 'absolute', top: s, left: 4*s, width: 8*s, height: 2*s, background: 'rgba(255,255,255,0.12)', borderRadius: s }} />
+              {/* Volume lateral */}
+              <div style={{ position: 'absolute', bottom: 0, left: 0, width: 3 * s, height: 8 * s, background: darkenColor(hairColor, 15) }} />
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 3 * s, height: 8 * s, background: darkenColor(hairColor, 20) }} />
+            </div>
+
+            {/* Base da cabeça (rosto) */}
+            <div style={{
+              position: 'absolute', top: 4 * s, left: 0, right: 0, bottom: 0,
+              background: `linear-gradient(160deg, ${skinHighlight} 0%, ${skinColor} 50%, ${skinShadow} 100%)`,
+              border: `${2 * s}px solid rgba(40, 25, 10, 0.6)`,
+              borderRadius: `${2*s}px`,
+              overflow: 'hidden',
+              ...customStyles.headBase
+            }}>
+              {isNight && <div style={{ position: 'absolute', top: 0, left: 0, width: '40%', height: '35%', background: 'rgba(255,180,60,0.35)', filter: 'blur(1px)' }} />}
+            </div>
+
+            {/* Olho esquerdo */}
+            <div style={{
+              position: 'absolute', top: 8 * s, left: 4 * s, width: 7 * s, height: 5 * s,
+              background: '#fff',
+              border: `${s}px solid rgba(0,0,0,0.7)`,
+              borderRadius: `${s}px`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)',
+              ...customStyles.eyeL
+            }}>
+              <div style={{ width: 3 * s, height: 3 * s, background: '#1a1a1a', borderRadius: '50%', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 0, right: 0, width: s, height: s, background: '#fff', borderRadius: '50%' }} />
+              </div>
+            </div>
+            {/* Olho direito */}
+            <div style={{
+              position: 'absolute', top: 8 * s, right: 4 * s, width: 7 * s, height: 5 * s,
+              background: '#fff',
+              border: `${s}px solid rgba(0,0,0,0.7)`,
+              borderRadius: `${s}px`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)',
+              ...customStyles.eyeR
+            }}>
+              <div style={{ width: 3 * s, height: 3 * s, background: '#1a1a1a', borderRadius: '50%', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 0, right: 0, width: s, height: s, background: '#fff', borderRadius: '50%' }} />
+              </div>
+            </div>
+
+            {/* Sobrancelhas volumosas */}
+            <div style={{
+              position: 'absolute', top: 6.5 * s, left: 3.5 * s, width: 8 * s, height: 1.5 * s,
+              background: hairColor, borderRadius: s, transform: 'rotate(-3deg)'
+            }} />
+            <div style={{
+              position: 'absolute', top: 6.5 * s, right: 3.5 * s, width: 8 * s, height: 1.5 * s,
+              background: hairColor, borderRadius: s, transform: 'rotate(3deg)'
+            }} />
+
+            {/* Nariz com volume */}
+            <div style={{
+              position: 'absolute', top: 11 * s, left: '50%', transform: 'translateX(-50%)',
+              width: 5 * s, height: 3 * s,
+              background: `linear-gradient(135deg, transparent 20%, rgba(0,0,0,0.15) 80%)`,
+              borderRadius: `0 0 ${2*s}px ${2*s}px`,
+              ...customStyles.nose
+            }} />
+
+            {/* Boca */}
+            <div style={{
+              position: 'absolute', bottom: 2 * s, left: '50%', transform: 'translateX(-50%)',
+              width: 10 * s, height: 2.5 * s,
+              background: 'linear-gradient(180deg, #7a3a1a, #5a2a10)',
+              borderRadius: `0 0 ${2*s}px ${2*s}px`,
+              ...customStyles.mouth
+            }}>
+              <div style={{ position: 'absolute', top: 0, left: 3 * s, width: 1.5 * s, height: s, background: 'rgba(255,255,255,0.6)', borderRadius: s }} />
+            </div>
+          </div>
         </div>
       </div>
-
-
-      {/* ── Cinturão ── */}
-      <div style={{
-        position: 'absolute', top: 33 * s, left: 4 * s, width: 24 * s, height: 3 * s,
-        background: '#1a0d00', border: `${s}px solid #333`,
-      }}>
-        {/* Fivela */}
-        <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: 5 * s, height: 3 * s, background: '#555' }} />
-      </div>
-
-      <div 
-        className={legLeftClass}
-        style={{
-        position: 'absolute', top: 36 * s, left: 4 * s, width: 11 * s, height: 16 * s,
-        background: pantsColor, border: `${s}px solid #1a1a2a`,
-        transformOrigin: 'top center',
-        transition: 'transform 0.15s',
-        ...customStyles.legL
-      }}>
-        {/* Costura */}
-        <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: s, background: 'rgba(255,255,255,0.08)' }} />
-        {/* Bota */}
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 5 * s, background: '#1a0d00', border: `${s}px solid #333`, ...customStyles.bootL }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2 * s, background: 'rgba(255,255,255,0.06)' }} />
-        </div>
-      </div>
-
-      <div 
-        className={legRightClass}
-        style={{
-        position: 'absolute', top: 36 * s, right: 5 * s, width: 11 * s, height: 16 * s,
-        background: pantsColor, border: `${s}px solid #1a1a2a`,
-        transformOrigin: 'top center',
-        transition: 'transform 0.15s',
-        ...customStyles.legR
-      }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: s, background: 'rgba(255,255,255,0.08)' }} />
-        {/* Bota */}
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 5 * s, background: '#1a0d00', border: `${s}px solid #333`, ...customStyles.bootR }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2 * s, background: 'rgba(255,255,255,0.06)' }} />
-        </div>
-      </div>
-    </>
+    </div>
   );
+}
+
+// Utilitários de cor
+function darkenColor(hex: string, percent: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.max(0, (num >> 16) - Math.round(2.55 * percent));
+  const g = Math.max(0, ((num >> 8) & 0x00FF) - Math.round(2.55 * percent));
+  const b = Math.max(0, (num & 0x0000FF) - Math.round(2.55 * percent));
+  return `rgb(${r},${g},${b})`;
+}
+
+function lightenColor(hex: string, percent: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, (num >> 16) + Math.round(2.55 * percent));
+  const g = Math.min(255, ((num >> 8) & 0x00FF) + Math.round(2.55 * percent));
+  const b = Math.min(255, (num & 0x0000FF) + Math.round(2.55 * percent));
+  return `rgb(${r},${g},${b})`;
 }

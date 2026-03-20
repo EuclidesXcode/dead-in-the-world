@@ -3,8 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ZombieType } from '@/lib/supabase';
 
 // ──────────────────────────────────────────────────────
-//  ZOMBIE CSS SPRITES — 4 tipos, estilo retro pixel art
-//  Walker / Runner / Tank / Screamer
+//  ZOMBIE CSS SPRITES — Visão isométrica 3/4
+//  Walker / Runner / Tank / Screamer / Leaper
+//  Estilo refinado com iluminação e volume
 // ──────────────────────────────────────────────────────
 
 interface ZombieSpriteProps {
@@ -17,6 +18,25 @@ interface ZombieSpriteProps {
   scale?: number;
   showHealthBar?: boolean;
   isAlive?: boolean;
+}
+
+// Utilitários de cor
+function darkenColor(hex: string, percent: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  if (isNaN(num)) return hex;
+  const r = Math.max(0, (num >> 16) - Math.round(2.55 * percent));
+  const g = Math.max(0, ((num >> 8) & 0x00FF) - Math.round(2.55 * percent));
+  const b = Math.max(0, (num & 0x0000FF) - Math.round(2.55 * percent));
+  return `rgb(${r},${g},${b})`;
+}
+
+function lightenColor(hex: string, percent: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  if (isNaN(num)) return hex;
+  const r = Math.min(255, (num >> 16) + Math.round(2.55 * percent));
+  const g = Math.min(255, ((num >> 8) & 0x00FF) + Math.round(2.55 * percent));
+  const b = Math.min(255, (num & 0x0000FF) + Math.round(2.55 * percent));
+  return `rgb(${r},${g},${b})`;
 }
 
 export default function ZombieSprite({
@@ -68,19 +88,21 @@ export default function ZombieSprite({
       imageRendering: 'pixelated',
       transform: `scaleX(${facingLeft ? -1 : 1})`,
     }}>
-      {/* Barra de vida do zumbi */}
+      {/* Barra de vida */}
       {showHealthBar && isAlive && (
         <div style={{
           position: 'absolute',
-          top: -8,
+          top: -10,
           left: '50%',
           transform: `translateX(-50%) scaleX(${facingLeft ? -1 : 1})`,
-          width: 36,
+          width: 38,
           height: 4,
-          background: '#1a1a1a',
-          border: '1px solid #333',
+          background: 'rgba(0,0,0,0.7)',
+          border: '1px solid #444',
+          borderRadius: 1,
+          zIndex: 20,
         }}>
-          <div style={{ width: `${healthPercent}%`, height: '100%', background: '#dc2626', transition: 'width 0.2s' }} />
+          <div style={{ width: `${healthPercent}%`, height: '100%', background: '#dc2626', transition: 'width 0.2s', borderRadius: 1 }} />
         </div>
       )}
 
@@ -90,13 +112,13 @@ export default function ZombieSprite({
         {zombieType === 'tank' && <TankZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
         {zombieType === 'screamer' && <ScreamerZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
         {zombieType === 'leaper' && <LeaperZombie scale={scale} isAttacking={isAttacking} isMoving={isMoving} />}
-        
-        {/* Sangue ao morrer */}
+
+        {/* Poça de sangue ao morrer */}
         {!isAlive && (
           <div className="anim-blood" style={{
             position: 'absolute', top: '50%', left: '50%',
-            width: 40 * scale, height: 40 * scale,
-            background: 'radial-gradient(circle, rgba(139,0,0,0.8) 0%, rgba(139,0,0,0.4) 40%, transparent 70%)',
+            width: 44 * scale, height: 44 * scale,
+            background: 'radial-gradient(circle, rgba(120,0,0,0.85) 0%, rgba(100,0,0,0.4) 40%, transparent 70%)',
             borderRadius: '50%', pointerEvents: 'none',
             zIndex: -1, translate: '-50% -50%'
           }} />
@@ -107,279 +129,489 @@ export default function ZombieSprite({
 }
 
 // ════════════════════════════════════════
+//  Sombra isométrica compartilhada
+// ════════════════════════════════════════
+function IsoShadow({ s, width = 28, moving = false }: { s: number; width?: number; moving?: boolean }) {
+  return (
+    <div style={{
+      position: 'absolute', bottom: -2 * s, left: '50%',
+      transform: `translateX(-50%) ${moving ? 'scale(1.1, 0.65)' : 'scale(1, 0.55)'}`,
+      width: width * s, height: 12 * s,
+      background: 'radial-gradient(ellipse, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 65%, transparent 100%)',
+      borderRadius: '50%', transition: 'transform 0.3s', zIndex: 0,
+    }} />
+  );
+}
+
+// ════════════════════════════════════════
 //  WALKER — zumbi padrão
 // ════════════════════════════════════════
-function WalkerZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
-  const s = scale;
-  const armL = isAttacking ? 'rotate(-50deg)' : 'rotate(-30deg)';
-  const armR = isAttacking ? 'rotate(-50deg)' : 'rotate(-30deg)';
+function WalkerZombie({ scale: s, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
+  const skin = '#4a7c59';
+  const skinDark = darkenColor(skin, 20);
+  const skinLight = lightenColor(skin, 10);
+  const armRot = isAttacking ? 'rotate(-55deg)' : 'rotate(-30deg)';
 
   return (
-    <div style={{ position: 'relative', width: 28 * s, height: 44 * s, imageRendering: 'pixelated' }}>
-      {/* ── Cabeça podre ── */}
-      <div style={{ position: 'absolute', top: 0, left: 4 * s, width: 22 * s, height: 18 * s, background: '#4a7c59', border: `${2 * s}px solid #2a4a35`, boxShadow: 'inset -3px -3px 0 rgba(0,0,0,0.2)' }}>
-        {/* Cicatriz */}
-        {/* Cérebro exposto (topo) */}
-        <div style={{ position: 'absolute', top: -2 * s, left: 6 * s, width: 8 * s, height: 3 * s, background: '#cc6699', border: `${s}px solid #883355` }} />
+    <div style={{ position: 'relative', width: 32 * s, height: 48 * s, imageRendering: 'pixelated' }}>
+      <IsoShadow s={s} width={30} moving={isMoving} />
+
+      {/* Pernas */}
+      <div className={isMoving ? 'anim-leg-left' : ''} style={{
+        position: 'absolute', bottom: 2 * s, left: 4 * s, width: 10 * s, height: 14 * s,
+        background: `linear-gradient(160deg, #2a3a30, #1a2a20)`,
+        border: `${s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }}>
+        <div style={{ position: 'absolute', bottom: -s, left: -s, right: -s, height: 4 * s, background: '#1a0d00', border: `${s}px solid #333`, borderRadius: `0 0 ${2*s}px ${2*s}px` }} />
+      </div>
+      <div className={isMoving ? 'anim-leg-right' : ''} style={{
+        position: 'absolute', bottom: 4 * s, right: 4 * s, width: 10 * s, height: 12 * s,
+        background: `linear-gradient(160deg, #1a2a20, #0d1a10)`,
+        border: `${s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }}>
+        <div style={{ position: 'absolute', bottom: -s, left: -s, right: -s, height: 4 * s, background: '#1a0d00', border: `${s}px solid #333`, borderRadius: `0 0 ${2*s}px ${2*s}px` }} />
       </div>
 
-      {/* ── Pescoço ── */}
-      <div style={{ position: 'absolute', top: 16 * s, left: 9 * s, width: 10 * s, height: 4 * s, background: '#4a7c59', border: `${s}px solid #2a4a35` }} />
-
-      {/* ── Torso rasgado ── */}
-      <div style={{ position: 'absolute', top: 20 * s, left: 2 * s, width: 24 * s, height: 16 * s, background: '#3a5a45', border: `${2 * s}px solid #2a4a35`, boxShadow: '0 4px 0 rgba(0,0,0,0.2)' }}>
-        {/* Sangue / Mancha */}
-        <div style={{ position: 'absolute', top: 3 * s, left: 8 * s, width: 10 * s, height: 8 * s, background: 'rgba(139,0,0,0.6)' }} />
-        {/* Moscas (Partículas) */}
-        {[1, 2, 3].map(i => (
-          <div key={i} className="anim-float" style={{ position: 'absolute', top: -10 * s * Math.random(), left: 24 * s * Math.random(), width: s, height: s, background: '#000', borderRadius: '50%', opacity: 0.6 }} />
+      {/* Torso rasgado */}
+      <div style={{
+        position: 'absolute', top: 20 * s, left: 2 * s, width: 28 * s, height: 18 * s,
+        background: `linear-gradient(160deg, ${skinLight} 0%, #3a5a45 40%, ${skinDark} 100%)`,
+        border: `${2 * s}px solid rgba(0,0,0,0.5)`,
+        borderRadius: `${3*s}px ${3*s}px ${s}px ${s}px`,
+        zIndex: 3, overflow: 'hidden',
+      }}>
+        {/* Mancha de sangue */}
+        <div style={{ position: 'absolute', top: 2 * s, left: 6 * s, width: 14 * s, height: 10 * s, background: 'rgba(139,0,0,0.55)', borderRadius: '40%' }} />
+        {/* Entranhas */}
+        <div style={{ position: 'absolute', bottom: 2 * s, left: 3 * s, width: 20 * s, height: 5 * s, background: 'rgba(160,40,40,0.4)', borderRadius: `${2*s}px` }} />
+        {/* Moscas */}
+        {[0, 1, 2].map(i => (
+          <div key={i} className="anim-float" style={{
+            position: 'absolute', top: `${20 + i * 25}%`, left: `${15 + i * 30}%`,
+            width: s * 1.5, height: s * 1.5, background: '#000', borderRadius: '50%', opacity: 0.5,
+          }} />
         ))}
-        {/* Entranhas visíveis */}
-        <div style={{ position: 'absolute', bottom: 2 * s, left: 4 * s, width: 16 * s, height: 4 * s, background: 'rgba(180,50,50,0.5)', borderRadius: s }} />
       </div>
 
-      {/* ── Braço esquerdo estendido ── */}
+      {/* Braços estendidos */}
       <div style={{
-        position: 'absolute', top: 18 * s, left: -4 * s, width: 7 * s, height: 18 * s,
-        background: '#4a7c59', border: `${s}px solid #2a4a35`,
-        transformOrigin: 'top center', transform: armL,
-        transition: 'transform 0.15s',
+        position: 'absolute', top: 20 * s, left: -4 * s, width: 8 * s, height: 18 * s,
+        background: `linear-gradient(180deg, ${skinLight}, ${skinDark})`,
+        border: `${s}px solid rgba(0,0,0,0.4)`, borderRadius: `${2*s}px`,
+        transformOrigin: 'top center', transform: armRot, transition: 'transform 0.15s', zIndex: 4,
       }}>
-        {/* Garra */}
-        <div style={{ position: 'absolute', bottom: -2 * s, left: 0, right: 0, height: 5 * s }}>
+        {/* Garras */}
+        <div style={{ position: 'absolute', bottom: -3 * s, left: 0, right: 0, display: 'flex', justifyContent: 'space-around' }}>
           {[0, 1, 2].map(i => (
-            <div key={i} style={{ position: 'absolute', bottom: 0, left: `${i * 33}%`, width: 2 * s, height: 4 * s, background: '#1a0d00', transform: 'rotate(-5deg)' }} />
+            <div key={i} style={{ width: 2 * s, height: 5 * s, background: '#1a0d00', borderRadius: s, transform: `rotate(${-8 + i * 8}deg)` }} />
+          ))}
+        </div>
+      </div>
+      <div style={{
+        position: 'absolute', top: 20 * s, right: -4 * s, width: 8 * s, height: 16 * s,
+        background: `linear-gradient(180deg, ${skin}, ${skinDark})`,
+        border: `${s}px solid rgba(0,0,0,0.4)`, borderRadius: `${2*s}px`,
+        transformOrigin: 'top center', transform: armRot, transition: 'transform 0.15s', zIndex: 4,
+      }}>
+        <div style={{ position: 'absolute', bottom: -3 * s, left: 0, right: 0, display: 'flex', justifyContent: 'space-around' }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ width: 2 * s, height: 5 * s, background: '#1a0d00', borderRadius: s }} />
           ))}
         </div>
       </div>
 
-      {/* ── Braço direito estendido ── */}
+      {/* Pescoço */}
       <div style={{
-        position: 'absolute', top: 18 * s, right: -4 * s, width: 7 * s, height: 16 * s,
-        background: '#4a7c59', border: `${s}px solid #2a4a35`,
-        transformOrigin: 'top center', transform: armR,
-        transition: 'transform 0.15s',
-      }}>
-        <div style={{ position: 'absolute', bottom: -2 * s, left: 0, right: 0, height: 5 * s }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{ position: 'absolute', bottom: 0, left: `${i * 33}%`, width: 2 * s, height: 4 * s, background: '#1a0d00' }} />
-          ))}
-        </div>
-      </div>
+        position: 'absolute', top: 16 * s, left: 10 * s, width: 12 * s, height: 6 * s,
+        background: `linear-gradient(160deg, ${skin}, ${skinDark})`,
+        border: `${s}px solid rgba(0,0,0,0.3)`, zIndex: 5,
+      }} />
 
-      {/* ── Pernas ── */}
-      <div className={isMoving ? 'anim-leg-left' : ''} style={{ position: 'absolute', top: 36 * s, left: 3 * s, width: 9 * s, height: 13 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#1a0d00', border: `${s}px solid #333` }} />
-      </div>
-      <div className={isMoving ? 'anim-leg-right' : ''} style={{ position: 'absolute', top: 38 * s, right: 3 * s, width: 9 * s, height: 11 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#1a0d00', border: `${s}px solid #333` }} />
+      {/* Cabeça */}
+      <div style={{
+        position: 'absolute', top: 0, left: 4 * s, width: 24 * s, height: 20 * s,
+        zIndex: 10,
+      }}>
+        {/* Topo craniano (visível de cima) */}
+        <div style={{
+          position: 'absolute', top: -2 * s, left: -s, right: -s, height: 8 * s,
+          background: `linear-gradient(180deg, ${skinLight}, ${skin})`,
+          borderRadius: `${5*s}px ${5*s}px ${s}px ${s}px`,
+          border: `${s}px solid rgba(0,0,0,0.3)`,
+        }}>
+          {/* Cérebro exposto */}
+          <div style={{ position: 'absolute', top: 0, left: 6 * s, width: 12 * s, height: 5 * s, background: 'linear-gradient(135deg, #cc6699, #aa4477)', borderRadius: `${3*s}px ${3*s}px 0 0`, border: `${s}px solid #773355` }} />
+        </div>
+        {/* Rosto */}
+        <div style={{
+          position: 'absolute', top: 3 * s, left: 0, right: 0, bottom: 0,
+          background: `linear-gradient(160deg, ${skinLight}, ${skin}, ${skinDark})`,
+          border: `${2 * s}px solid rgba(40,60,40,0.6)`,
+          borderRadius: `${2*s}px`,
+        }}>
+          {/* Boca com dentes */}
+          <div style={{
+            position: 'absolute', bottom: 2 * s, left: 3 * s, right: 3 * s, height: 5 * s,
+            background: '#0d0000', border: `${s}px solid #440000`, borderRadius: s,
+          }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{ position: 'absolute', top: 0, left: `${15 + i * 30}%`, width: 2 * s, height: 3 * s, background: '#ccbb88' }} />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 // ════════════════════════════════════════
-//  RUNNER — zumbi rápido e magro
+//  RUNNER — zumbi rápido
 // ════════════════════════════════════════
-function RunnerZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
-  const s = scale;
-
+function RunnerZombie({ scale: s, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
   return (
-    <div style={{ position: 'relative', width: 22 * s, height: 46 * s, imageRendering: 'pixelated' }}>
-      {/* Cabeça menor, mais agressiva */}
-      <div style={{ position: 'absolute', top: 0, left: 3 * s, width: 16 * s, height: 14 * s, background: '#5a8c69', border: `${2 * s}px solid #2a4a35` }}>
-        {/* Olhos estreitados */}
-        <div style={{ position: 'absolute', top: 5 * s, left: 2 * s, width: 5 * s, height: 3 * s, background: '#ff3300', boxShadow: `0 0 ${4*s}px #ff6600` }} />
-        <div style={{ position: 'absolute', top: 5 * s, right: 2 * s, width: 5 * s, height: 3 * s, background: '#ff3300', boxShadow: `0 0 ${4*s}px #ff6600` }} />
-        {/* Boca aberta correndo */}
-        <div style={{ position: 'absolute', bottom: 2 * s, left: 2 * s, width: 12 * s, height: 5 * s, background: '#0d0000', border: `${s}px solid #440000` }}>
-          <div style={{ position: 'absolute', top: 0, left: 2 * s, width: 2 * s, height: 3 * s, background: '#ccbb88' }} />
-          <div style={{ position: 'absolute', top: 0, right: 2 * s, width: 2 * s, height: 3 * s, background: '#ccbb88' }} />
-          {/* Língua */}
-          <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 4 * s, height: 3 * s, background: '#cc4444' }} />
-        </div>
+    <div style={{ position: 'relative', width: 26 * s, height: 48 * s, imageRendering: 'pixelated' }}>
+      <IsoShadow s={s} width={24} moving={isMoving} />
+
+      {/* Pernas longas */}
+      <div className={isMoving ? 'anim-leg-left' : ''} style={{
+        position: 'absolute', bottom: 0, left: 2 * s, width: 9 * s, height: 16 * s,
+        background: 'linear-gradient(160deg, #1a2a20, #0d1a10)',
+        border: `${s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }}>
+        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500', borderRadius: `0 0 ${2*s}px ${2*s}px` }} />
       </div>
+      <div className={isMoving ? 'anim-leg-right' : ''} style={{
+        position: 'absolute', bottom: 2 * s, right: 2 * s, width: 9 * s, height: 14 * s,
+        background: 'linear-gradient(160deg, #0d1a10, #050d05)',
+        border: `${s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }}>
+        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500', borderRadius: `0 0 ${2*s}px ${2*s}px` }} />
+      </div>
+
       {/* Corpo magro */}
-      <div style={{ position: 'absolute', top: 14 * s, left: 3 * s, width: 18 * s, height: 20 * s, background: '#2d4a38', border: `${2 * s}px solid #1a2a20`, boxShadow: 'inset -2px -2px 0 rgba(0,0,0,0.3)' }}>
-        {/* Sangue escorrendo */}
-        <div style={{ position: 'absolute', top: 0, left: 4*s, width: 2*s, height: 8*s, background: '#8b0000', opacity: 0.7 }} />
-        {/* Costelas visíveis */}
+      <div style={{
+        position: 'absolute', top: 16 * s, left: 3 * s, width: 22 * s, height: 20 * s,
+        background: 'linear-gradient(160deg, #3a5a40, #2d4a38, #1a2a20)',
+        border: `${2 * s}px solid rgba(0,0,0,0.5)`,
+        borderRadius: `${3*s}px ${3*s}px ${s}px ${s}px`,
+        zIndex: 3, overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', top: 0, left: 4*s, width: 2*s, height: '70%', background: 'rgba(139,0,0,0.5)' }} />
         {[0, 1, 2].map(i => (
-          <div key={i} style={{ position: 'absolute', top: (4 + i * 5) * s, left: 2*s, right: 2*s, height: s, background: 'rgba(255,255,255,0.1)' }} />
+          <div key={i} style={{ position: 'absolute', top: (3 + i * 5) * s, left: 2*s, right: 2*s, height: s, background: 'rgba(255,255,255,0.08)' }} />
         ))}
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, transparent 30%, rgba(139,0,0,0.2) 100%)' }} />
       </div>
 
       {/* Braços em posição de corrida */}
       <div style={{
-        position: 'absolute', top: 16 * s, left: -3 * s, width: 5 * s, height: 14 * s,
-        background: '#5a8c69', border: `${s}px solid #2a4a35`,
-        transform: 'rotate(20deg)', transformOrigin: 'top center',
+        position: 'absolute', top: 18 * s, left: -3 * s, width: 6 * s, height: 16 * s,
+        background: 'linear-gradient(180deg, #5a8c69, #3a6050)',
+        border: `${s}px solid rgba(0,0,0,0.4)`, borderRadius: `${2*s}px`,
+        transform: 'rotate(25deg)', transformOrigin: 'top center', zIndex: 4,
       }} />
       <div style={{
-        position: 'absolute', top: 16 * s, right: -3 * s, width: 5 * s, height: 14 * s,
-        background: '#5a8c69', border: `${s}px solid #2a4a35`,
-        transform: 'rotate(-20deg)', transformOrigin: 'top center',
+        position: 'absolute', top: 18 * s, right: -3 * s, width: 6 * s, height: 16 * s,
+        background: 'linear-gradient(180deg, #5a8c69, #3a6050)',
+        border: `${s}px solid rgba(0,0,0,0.4)`, borderRadius: `${2*s}px`,
+        transform: 'rotate(-25deg)', transformOrigin: 'top center', zIndex: 4,
       }} />
-      {/* Pernas longas de corredor */}
-      <div className={isMoving ? "anim-leg-left" : ""} style={{ position: 'absolute', top: 32 * s, left: 2 * s, width: 8 * s, height: 18 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
-      </div>
-      <div className={isMoving ? "anim-leg-right" : ""} style={{ position: 'absolute', top: 34 * s, right: 2 * s, width: 8 * s, height: 16 * s, background: '#1a2a20', border: `${s}px solid #0d1a10` }}>
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
+
+      {/* Cabeça */}
+      <div style={{
+        position: 'absolute', top: 0, left: 4 * s, width: 20 * s, height: 18 * s, zIndex: 10,
+      }}>
+        <div style={{
+          position: 'absolute', top: -s, left: -s, right: -s, height: 7 * s,
+          background: 'linear-gradient(180deg, #6a9c79, #5a8c69)',
+          borderRadius: `${4*s}px ${4*s}px 0 0`, border: `${s}px solid rgba(0,0,0,0.3)`,
+        }} />
+        <div style={{
+          position: 'absolute', top: 3 * s, left: 0, right: 0, bottom: 0,
+          background: 'linear-gradient(160deg, #6a9c79, #5a8c69, #3a6050)',
+          border: `${2 * s}px solid rgba(30,50,35,0.6)`, borderRadius: `${2*s}px`,
+        }}>
+          {/* Olhos vermelhos brilhantes */}
+          <div style={{ position: 'absolute', top: 3 * s, left: 2 * s, width: 6 * s, height: 4 * s, background: '#ff3300', borderRadius: s, boxShadow: `0 0 ${6*s}px #ff6600` }} />
+          <div style={{ position: 'absolute', top: 3 * s, right: 2 * s, width: 6 * s, height: 4 * s, background: '#ff3300', borderRadius: s, boxShadow: `0 0 ${6*s}px #ff6600` }} />
+          {/* Boca aberta */}
+          <div style={{
+            position: 'absolute', bottom: s, left: 2 * s, right: 2 * s, height: 6 * s,
+            background: '#0d0000', border: `${s}px solid #440000`, borderRadius: s,
+          }}>
+            <div style={{ position: 'absolute', top: 0, left: 2 * s, width: 2 * s, height: 3 * s, background: '#ccbb88' }} />
+            <div style={{ position: 'absolute', top: 0, right: 2 * s, width: 2 * s, height: 3 * s, background: '#ccbb88' }} />
+            <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 4 * s, height: 3 * s, background: '#cc4444', borderRadius: s }} />
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 // ════════════════════════════════════════
-//  TANK — zumbi gordo e resistente
+//  TANK — zumbi gordo
 // ════════════════════════════════════════
-function TankZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
-  const s = scale;
-
+function TankZombie({ scale: s, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
   return (
-    <div style={{ position: 'relative', width: 44 * s, height: 50 * s, imageRendering: 'pixelated' }}>
-      {/* Cabeça enorme */}
-      <div style={{ position: 'absolute', top: 0, left: 8 * s, width: 28 * s, height: 22 * s, background: '#3a6048', border: `${3 * s}px solid #1a3020` }}>
-        {/* Olhos injectados */}
-        <div style={{ position: 'absolute', top: 7 * s, left: 4 * s, width: 8 * s, height: 7 * s, background: '#cc0000', boxShadow: `0 0 ${6*s}px #ff0000` }}>
-          <div style={{ position: 'absolute', inset: s, background: '#660000' }} />
-        </div>
-        <div style={{ position: 'absolute', top: 7 * s, right: 4 * s, width: 8 * s, height: 7 * s, background: '#cc0000', boxShadow: `0 0 ${6*s}px #ff0000` }}>
-          <div style={{ position: 'absolute', inset: s, background: '#660000' }} />
-        </div>
-        {/* Boca enorme */}
-        <div style={{ position: 'absolute', bottom: 2 * s, left: 4 * s, width: 20 * s, height: 6 * s, background: '#0d0000', border: `${2 * s}px solid #660000` }}>
-          {[0, 1, 2, 3, 4].map(i => (
-            <div key={i} style={{ position: 'absolute', top: 0, left: `${i * 20}%`, width: 3 * s, height: 5 * s, background: '#ddcc99' }} />
-          ))}
-        </div>
-        {/* Cicatrizes pesadas */}
-        <div style={{ position: 'absolute', top: 4 * s, left: 8 * s, width: s, height: 14 * s, background: '#1a3020' }} />
-        <div style={{ position: 'absolute', top: 2 * s, right: 6 * s, width: 14 * s, height: s, background: '#1a3020' }} />
+    <div style={{ position: 'relative', width: 48 * s, height: 54 * s, imageRendering: 'pixelated' }}>
+      <IsoShadow s={s} width={44} moving={isMoving} />
+
+      {/* Pernas grossas */}
+      <div className={isMoving ? 'anim-leg-left' : ''} style={{
+        position: 'absolute', bottom: 0, left: 6 * s, width: 16 * s, height: 14 * s,
+        background: 'linear-gradient(160deg, #1a2a20, #0d1a10)',
+        border: `${2 * s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }}>
+        <div style={{ position: 'absolute', bottom: 0, inset: 0, top: 'auto', height: 5 * s, background: '#0d0500', borderRadius: `0 0 ${2*s}px ${2*s}px` }} />
+      </div>
+      <div className={isMoving ? 'anim-leg-right' : ''} style={{
+        position: 'absolute', bottom: 2 * s, right: 6 * s, width: 16 * s, height: 12 * s,
+        background: 'linear-gradient(160deg, #0d1a10, #050d05)',
+        border: `${2 * s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }}>
+        <div style={{ position: 'absolute', bottom: 0, inset: 0, top: 'auto', height: 5 * s, background: '#0d0500', borderRadius: `0 0 ${2*s}px ${2*s}px` }} />
+      </div>
+
+      {/* Torso enorme */}
+      <div style={{
+        position: 'absolute', top: 24 * s, left: 0, width: 48 * s, height: 22 * s,
+        background: 'linear-gradient(160deg, #3a6048, #2a4535, #1a3020)',
+        border: `${3 * s}px solid rgba(0,0,0,0.5)`,
+        borderRadius: `${4*s}px`,
+        zIndex: 3, overflow: 'hidden',
+      }}>
+        {/* Músculos */}
+        <div style={{ position: 'absolute', top: 3 * s, left: 5 * s, width: 16 * s, height: 16 * s, background: 'rgba(255,255,255,0.04)', border: `${s}px solid rgba(255,255,255,0.06)`, borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', top: 3 * s, right: 5 * s, width: 16 * s, height: 16 * s, background: 'rgba(255,255,255,0.04)', border: `${s}px solid rgba(255,255,255,0.06)`, borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', top: 4 * s, left: 10 * s, width: 28 * s, height: 12 * s, background: 'rgba(139,0,0,0.45)', borderRadius: '30%' }} />
       </div>
 
       {/* Pescoço grosso */}
-      <div style={{ position: 'absolute', top: 22 * s, left: 14 * s, width: 16 * s, height: 6 * s, background: '#3a6048', border: `${2 * s}px solid #1a3020` }} />
-
-      {/* Torso enorme */}
-      <div style={{ position: 'absolute', top: 28 * s, left: 0, width: 44 * s, height: 20 * s, background: '#2a4535', border: `${3 * s}px solid #1a3020` }}>
-        {/* Musculatura */}
-        <div style={{ position: 'absolute', top: 3 * s, left: 5 * s, width: 14 * s, height: 14 * s, background: 'rgba(255,255,255,0.04)', border: `${s}px solid rgba(255,255,255,0.06)`, borderRadius: '50%' }} />
-        <div style={{ position: 'absolute', top: 3 * s, right: 5 * s, width: 14 * s, height: 14 * s, background: 'rgba(255,255,255,0.04)', border: `${s}px solid rgba(255,255,255,0.06)`, borderRadius: '50%' }} />
-        {/* Sangue */}
-        <div style={{ position: 'absolute', top: 4 * s, left: 10 * s, width: 24 * s, height: 10 * s, background: 'rgba(139,0,0,0.5)' }} />
-      </div>
+      <div style={{
+        position: 'absolute', top: 20 * s, left: 14 * s, width: 20 * s, height: 8 * s,
+        background: 'linear-gradient(160deg, #3a6048, #2a4535)',
+        border: `${2 * s}px solid rgba(0,0,0,0.3)`, zIndex: 5,
+      }} />
 
       {/* Braços enormes */}
       <div style={{
-        position: 'absolute', top: 26 * s, left: -6 * s, width: 10 * s, height: 22 * s,
-        background: '#3a6048', border: `${2 * s}px solid #1a3020`,
-        transform: isAttacking ? 'rotate(-60deg)' : 'rotate(-20deg)', transformOrigin: 'top center',
-        transition: 'transform 0.1s',
+        position: 'absolute', top: 24 * s, left: -8 * s, width: 12 * s, height: 24 * s,
+        background: 'linear-gradient(180deg, #3a6048, #2a4535)',
+        border: `${2 * s}px solid rgba(0,0,0,0.4)`, borderRadius: `${3*s}px`,
+        transform: isAttacking ? 'rotate(-65deg)' : 'rotate(-20deg)', transformOrigin: 'top center',
+        transition: 'transform 0.12s', zIndex: 4,
       }} />
       <div style={{
-        position: 'absolute', top: 26 * s, right: -6 * s, width: 10 * s, height: 22 * s,
-        background: '#3a6048', border: `${2 * s}px solid #1a3020`,
-        transform: isAttacking ? 'rotate(60deg)' : 'rotate(20deg)', transformOrigin: 'top center',
-        transition: 'transform 0.1s',
+        position: 'absolute', top: 24 * s, right: -8 * s, width: 12 * s, height: 24 * s,
+        background: 'linear-gradient(180deg, #3a6048, #2a4535)',
+        border: `${2 * s}px solid rgba(0,0,0,0.4)`, borderRadius: `${3*s}px`,
+        transform: isAttacking ? 'rotate(65deg)' : 'rotate(20deg)', transformOrigin: 'top center',
+        transition: 'transform 0.12s', zIndex: 4,
       }} />
 
-      {/* Pernas grossas */}
-      <div className={isMoving ? "anim-leg-left" : ""} style={{ position: 'absolute', top: 48 * s, left: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
-        <div style={{ position: 'absolute', bottom: 0, inset: 0, height: 4 * s, background: '#0d0500', top: 'auto' }} />
-      </div>
-      <div className={isMoving ? "anim-leg-right" : ""} style={{ position: 'absolute', top: 48 * s, right: 4 * s, width: 16 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #0d1a10` }}>
-        <div style={{ position: 'absolute', bottom: 0, inset: 0, height: 4 * s, background: '#0d0500', top: 'auto' }} />
-      </div>
-    </div>
-  );
-}
-
-// ════════════════════════════════════════
-//  SCREAMER — zumbi que grita e chama hordas
-// ════════════════════════════════════════
-function ScreamerZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
-  const s = scale;
-  const mouthOpen = isAttacking ? 10 * s : 5 * s;
-
-  return (
-    <div style={{ position: 'relative', width: 26 * s, height: 48 * s, imageRendering: 'pixelated' }}>
-      {/* Cabeça com boca enorme */}
-      <div style={{ position: 'absolute', top: 0, left: 3 * s, width: 20 * s, height: 20 * s, background: '#52806a', border: `${2 * s}px solid #2a4a3a` }}>
-        {/* Olhos esbugalhados */}
-        <div style={{ position: 'absolute', top: 4 * s, left: 2 * s, width: 7 * s, height: 7 * s, background: '#fff', border: `${s}px solid #000` }}>
-          <div style={{ position: 'absolute', inset: s, background: '#cc0000', borderRadius: '50%' }} />
-        </div>
-        <div style={{ position: 'absolute', top: 4 * s, right: 2 * s, width: 7 * s, height: 7 * s, background: '#fff', border: `${s}px solid #000` }}>
-          <div style={{ position: 'absolute', inset: s, background: '#cc0000', borderRadius: '50%' }} />
-        </div>
-        {/* BOCA ENORME — screaming */}
+      {/* Cabeça enorme */}
+      <div style={{
+        position: 'absolute', top: 0, left: 8 * s, width: 32 * s, height: 24 * s, zIndex: 10,
+      }}>
         <div style={{
-          position: 'absolute', bottom: s, left: 2 * s, width: 16 * s, height: mouthOpen,
-          background: '#0d0000', border: `${2 * s}px solid #440000`,
-          transition: 'height 0.1s',
-          overflow: 'hidden',
+          position: 'absolute', top: -2 * s, left: -s, right: -s, height: 10 * s,
+          background: 'linear-gradient(180deg, #4a7058, #3a6048)',
+          borderRadius: `${6*s}px ${6*s}px 0 0`, border: `${s}px solid rgba(0,0,0,0.3)`,
         }}>
-          {/* Úvula */}
-          <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: 3 * s, height: 5 * s, background: '#cc4444' }} />
-          {/* Dentes superiores */}
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{ position: 'absolute', top: 0, left: `${2 + i * 4}` + s * 4 + 'px', width: 3 * s, height: 4 * s, background: '#ddd' }} />
-          ))}
+          {/* Cicatrizes */}
+          <div style={{ position: 'absolute', top: 3 * s, left: 8 * s, width: s, height: 8 * s, background: 'rgba(0,0,0,0.3)' }} />
         </div>
-        {/* Ondas sonoras ao gritar */}
-        {isAttacking && (
-          <>
-            <div style={{ position: 'absolute', left: -8 * s, top: '50%', width: 6 * s, height: 6 * s, border: `${s}px solid rgba(255,100,0,0.5)`, borderRadius: '50%', animation: 'ping 0.5s infinite' }} />
-            <div style={{ position: 'absolute', right: -8 * s, top: '50%', width: 6 * s, height: 6 * s, border: `${s}px solid rgba(255,100,0,0.5)`, borderRadius: '50%', animation: 'ping 0.5s 0.25s infinite' }} />
-          </>
-        )}
-      </div>
-      {/* Corpo esguio */}
-      <div style={{ position: 'absolute', top: 20 * s, left: 4 * s, width: 18 * s, height: 18 * s, background: '#3a5a48', border: `${2 * s}px solid #2a4a38` }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(139,0,0,0.2)' }} />
-      </div>
-      {/* Braços levantados gritando */}
-      <div style={{ position: 'absolute', top: 16 * s, left: -4 * s, width: 6 * s, height: 16 * s, background: '#52806a', border: `${s}px solid #2a4a3a`, transform: 'rotate(-60deg)', transformOrigin: 'top center' }} />
-      <div style={{ position: 'absolute', top: 16 * s, right: -4 * s, width: 6 * s, height: 16 * s, background: '#52806a', border: `${s}px solid #2a4a3a`, transform: 'rotate(60deg)', transformOrigin: 'top center' }} />
-      {/* Pernas */}
-      <div className={isMoving ? 'anim-leg-left' : ''} style={{ position: 'absolute', top: 38 * s, left: 3 * s, width: 9 * s, height: 14 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
-      </div>
-      <div className={isMoving ? 'anim-leg-right' : ''} style={{ position: 'absolute', top: 38 * s, right: 3 * s, width: 9 * s, height: 14 * s, background: '#2a3a30', border: `${s}px solid #1a2a20` }}>
-        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500' }} />
+        <div style={{
+          position: 'absolute', top: 4 * s, left: 0, right: 0, bottom: 0,
+          background: 'linear-gradient(160deg, #4a7058, #3a6048, #2a4535)',
+          border: `${3 * s}px solid rgba(20,40,25,0.6)`, borderRadius: `${3*s}px`,
+        }}>
+          {/* Olhos */}
+          <div style={{ position: 'absolute', top: 4 * s, left: 4 * s, width: 9 * s, height: 7 * s, background: '#cc0000', borderRadius: `${2*s}px`, boxShadow: `0 0 ${8*s}px rgba(255,0,0,0.5)` }}>
+            <div style={{ position: 'absolute', inset: s, background: '#660000', borderRadius: s }} />
+          </div>
+          <div style={{ position: 'absolute', top: 4 * s, right: 4 * s, width: 9 * s, height: 7 * s, background: '#cc0000', borderRadius: `${2*s}px`, boxShadow: `0 0 ${8*s}px rgba(255,0,0,0.5)` }}>
+            <div style={{ position: 'absolute', inset: s, background: '#660000', borderRadius: s }} />
+          </div>
+          {/* Boca enorme */}
+          <div style={{
+            position: 'absolute', bottom: 2 * s, left: 4 * s, right: 4 * s, height: 7 * s,
+            background: '#0d0000', border: `${2 * s}px solid #660000`, borderRadius: `${s}px`,
+          }}>
+            {[0, 1, 2, 3, 4].map(i => (
+              <div key={i} style={{ position: 'absolute', top: 0, left: `${8 + i * 18}%`, width: 3 * s, height: 5 * s, background: '#ddcc99' }} />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
 // ════════════════════════════════════════
-//  LEAPER — zumbi que pula obstáculos
+//  SCREAMER — grita e chama hordas
 // ════════════════════════════════════════
-function LeaperZombie({ scale, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
-  const s = scale;
+function ScreamerZombie({ scale: s, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
+  const mouthH = isAttacking ? 10 * s : 5 * s;
+
   return (
-    <div style={{ position: 'relative', width: 26 * s, height: 44 * s, imageRendering: 'pixelated' }}>
-      {/* Cabeça curvada para frente */}
-      <div style={{ position: 'absolute', top: 6 * s, left: 2 * s, width: 18 * s, height: 16 * s, background: '#7a9c79', border: `${2 * s}px solid #2a4a35`, borderRadius: '4px' }}>
-        {/* Olhos amarelos brilhantes */}
-        <div style={{ position: 'absolute', top: 5 * s, left: 2 * s, width: 6 * s, height: 4 * s, background: '#ff0', boxShadow: '0 0 8px #ff0' }} />
-        <div style={{ position: 'absolute', top: 5 * s, right: 2 * s, width: 6 * s, height: 4 * s, background: '#ff0', boxShadow: '0 0 8px #ff0' }} />
-        {/* Presas */}
-        <div style={{ position: 'absolute', bottom: 0, left: 5 * s, width: 2 * s, height: 4 * s, background: '#fff' }} />
-        <div style={{ position: 'absolute', bottom: 0, right: 5 * s, width: 2 * s, height: 4 * s, background: '#fff' }} />
+    <div style={{ position: 'relative', width: 30 * s, height: 50 * s, imageRendering: 'pixelated' }}>
+      <IsoShadow s={s} width={28} moving={isMoving} />
+
+      {/* Pernas */}
+      <div className={isMoving ? 'anim-leg-left' : ''} style={{
+        position: 'absolute', bottom: 0, left: 4 * s, width: 10 * s, height: 14 * s,
+        background: 'linear-gradient(160deg, #2a3a30, #1a2a20)',
+        border: `${s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }}>
+        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500', borderRadius: `0 0 ${2*s}px ${2*s}px` }} />
       </div>
+      <div className={isMoving ? 'anim-leg-right' : ''} style={{
+        position: 'absolute', bottom: 0, right: 4 * s, width: 10 * s, height: 14 * s,
+        background: 'linear-gradient(160deg, #1a2a20, #0d1a10)',
+        border: `${s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }}>
+        <div style={{ position: 'absolute', bottom: 0, left: -s, right: -s, height: 4 * s, background: '#0d0500', borderRadius: `0 0 ${2*s}px ${2*s}px` }} />
+      </div>
+
+      {/* Corpo esguio */}
+      <div style={{
+        position: 'absolute', top: 22 * s, left: 4 * s, width: 22 * s, height: 18 * s,
+        background: 'linear-gradient(160deg, #4a6a58, #3a5a48, #2a4a38)',
+        border: `${2 * s}px solid rgba(0,0,0,0.5)`, borderRadius: `${3*s}px`,
+        zIndex: 3, overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(139,0,0,0.15)' }} />
+      </div>
+
+      {/* Braços levantados */}
+      <div style={{
+        position: 'absolute', top: 18 * s, left: -4 * s, width: 7 * s, height: 18 * s,
+        background: 'linear-gradient(180deg, #52806a, #3a6050)',
+        border: `${s}px solid rgba(0,0,0,0.4)`, borderRadius: `${2*s}px`,
+        transform: 'rotate(-65deg)', transformOrigin: 'top center', zIndex: 4,
+      }} />
+      <div style={{
+        position: 'absolute', top: 18 * s, right: -4 * s, width: 7 * s, height: 18 * s,
+        background: 'linear-gradient(180deg, #52806a, #3a6050)',
+        border: `${s}px solid rgba(0,0,0,0.4)`, borderRadius: `${2*s}px`,
+        transform: 'rotate(65deg)', transformOrigin: 'top center', zIndex: 4,
+      }} />
+
+      {/* Cabeça */}
+      <div style={{ position: 'absolute', top: 0, left: 3 * s, width: 24 * s, height: 24 * s, zIndex: 10 }}>
+        <div style={{
+          position: 'absolute', top: -s, left: -s, right: -s, height: 8 * s,
+          background: 'linear-gradient(180deg, #62907a, #52806a)',
+          borderRadius: `${4*s}px ${4*s}px 0 0`, border: `${s}px solid rgba(0,0,0,0.3)`,
+        }} />
+        <div style={{
+          position: 'absolute', top: 3 * s, left: 0, right: 0, bottom: 0,
+          background: 'linear-gradient(160deg, #62907a, #52806a, #3a6050)',
+          border: `${2 * s}px solid rgba(30,50,40,0.6)`, borderRadius: `${2*s}px`,
+        }}>
+          {/* Olhos esbugalhados */}
+          <div style={{ position: 'absolute', top: 3 * s, left: 2 * s, width: 8 * s, height: 7 * s, background: '#fff', border: `${s}px solid #000`, borderRadius: `${2*s}px` }}>
+            <div style={{ position: 'absolute', inset: s, background: '#cc0000', borderRadius: '50%' }} />
+          </div>
+          <div style={{ position: 'absolute', top: 3 * s, right: 2 * s, width: 8 * s, height: 7 * s, background: '#fff', border: `${s}px solid #000`, borderRadius: `${2*s}px` }}>
+            <div style={{ position: 'absolute', inset: s, background: '#cc0000', borderRadius: '50%' }} />
+          </div>
+          {/* BOCA ENORME */}
+          <div style={{
+            position: 'absolute', bottom: s, left: 2 * s, right: 2 * s, height: mouthH,
+            background: '#0d0000', border: `${2 * s}px solid #440000`, borderRadius: s,
+            transition: 'height 0.1s', overflow: 'hidden',
+          }}>
+            <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: 3 * s, height: 5 * s, background: '#cc4444', borderRadius: s }} />
+          </div>
+          {/* Ondas sonoras */}
+          {isAttacking && (
+            <>
+              <div style={{ position: 'absolute', left: -10 * s, top: '50%', width: 8 * s, height: 8 * s, border: `${s}px solid rgba(255,100,0,0.5)`, borderRadius: '50%', animation: 'ping 0.5s infinite' }} />
+              <div style={{ position: 'absolute', right: -10 * s, top: '50%', width: 8 * s, height: 8 * s, border: `${s}px solid rgba(255,100,0,0.5)`, borderRadius: '50%', animation: 'ping 0.5s 0.25s infinite' }} />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════
+//  LEAPER — pula obstáculos
+// ════════════════════════════════════════
+function LeaperZombie({ scale: s, isAttacking, isMoving }: { scale: number; isAttacking: boolean; isMoving: boolean }) {
+  return (
+    <div style={{ position: 'relative', width: 28 * s, height: 46 * s, imageRendering: 'pixelated' }}>
+      <IsoShadow s={s} width={26} moving={isMoving} />
+
+      {/* Pernas poderosas */}
+      <div className={isMoving ? 'anim-leg-left' : ''} style={{
+        position: 'absolute', bottom: 0, left: 2 * s, width: 11 * s, height: 14 * s,
+        background: 'linear-gradient(160deg, #1a2a20, #050d05)',
+        border: `${2 * s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }} />
+      <div className={isMoving ? 'anim-leg-right' : ''} style={{
+        position: 'absolute', bottom: 0, right: 2 * s, width: 11 * s, height: 14 * s,
+        background: 'linear-gradient(160deg, #0d1a10, #050d05)',
+        border: `${2 * s}px solid rgba(0,0,0,0.5)`, borderRadius: `${s}px ${s}px ${2*s}px ${2*s}px`,
+        transformOrigin: 'top center', zIndex: 1,
+      }} />
+
       {/* Corpo arqueado */}
-      <div style={{ position: 'absolute', top: 18 * s, left: 4 * s, width: 20 * s, height: 14 * s, background: '#3a5a45', border: `${2 * s}px solid #2a4a35`, transform: 'skewX(-10deg)' }}>
-        <div style={{ position: 'absolute', top: 0, left: 2*s, right: 2*s, height: s, background: 'rgba(255,255,255,0.2)' }} />
+      <div style={{
+        position: 'absolute', top: 20 * s, left: 3 * s, width: 24 * s, height: 16 * s,
+        background: 'linear-gradient(160deg, #4a6a55, #3a5a45, #2a4a35)',
+        border: `${2 * s}px solid rgba(0,0,0,0.5)`, borderRadius: `${3*s}px`,
+        transform: 'skewX(-8deg)', zIndex: 3, overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', top: 0, left: 2*s, right: 2*s, height: s, background: 'rgba(255,255,255,0.15)' }} />
       </div>
-      {/* Braços como garras no chão */}
-      <div style={{ position: 'absolute', top: 22 * s, left: -4 * s, width: 6 * s, height: 20 * s, background: '#7a9c79', border: `${s}px solid #2a3a25`, transform: 'rotate(15deg)' }} />
-      <div style={{ position: 'absolute', top: 22 * s, right: -4 * s, width: 6 * s, height: 20 * s, background: '#7a9c79', border: `${s}px solid #2a3a25`, transform: 'rotate(-15deg)' }} />
-      {/* Pernas poderosas (saltador) */}
-      <div className={isMoving ? "anim-leg-left" : ""} style={{ position: 'absolute', bottom: 0, left: 2 * s, width: 10 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #000` }} />
-      <div className={isMoving ? "anim-leg-right" : ""} style={{ position: 'absolute', bottom: 0, right: 2 * s, width: 10 * s, height: 12 * s, background: '#1a2a20', border: `${2 * s}px solid #000` }} />
+
+      {/* Braços-garras */}
+      <div style={{
+        position: 'absolute', top: 24 * s, left: -4 * s, width: 7 * s, height: 20 * s,
+        background: 'linear-gradient(180deg, #7a9c79, #5a8060)',
+        border: `${s}px solid rgba(0,0,0,0.4)`, borderRadius: `${2*s}px`,
+        transform: 'rotate(18deg)', transformOrigin: 'top center', zIndex: 4,
+      }} />
+      <div style={{
+        position: 'absolute', top: 24 * s, right: -4 * s, width: 7 * s, height: 20 * s,
+        background: 'linear-gradient(180deg, #7a9c79, #5a8060)',
+        border: `${s}px solid rgba(0,0,0,0.4)`, borderRadius: `${2*s}px`,
+        transform: 'rotate(-18deg)', transformOrigin: 'top center', zIndex: 4,
+      }} />
+
+      {/* Cabeça curvada */}
+      <div style={{ position: 'absolute', top: 4 * s, left: 3 * s, width: 22 * s, height: 20 * s, zIndex: 10 }}>
+        <div style={{
+          position: 'absolute', top: -s, left: -s, right: -s, height: 8 * s,
+          background: 'linear-gradient(180deg, #8aac89, #7a9c79)',
+          borderRadius: `${4*s}px ${4*s}px 0 0`, border: `${s}px solid rgba(0,0,0,0.3)`,
+        }} />
+        <div style={{
+          position: 'absolute', top: 3 * s, left: 0, right: 0, bottom: 0,
+          background: 'linear-gradient(160deg, #8aac89, #7a9c79, #5a8060)',
+          border: `${2 * s}px solid rgba(30,50,30,0.6)`, borderRadius: `${3*s}px`,
+        }}>
+          {/* Olhos amarelos */}
+          <div style={{ position: 'absolute', top: 3 * s, left: 2 * s, width: 7 * s, height: 5 * s, background: '#ff0', borderRadius: `${2*s}px`, boxShadow: `0 0 ${8*s}px rgba(255,255,0,0.6)` }} />
+          <div style={{ position: 'absolute', top: 3 * s, right: 2 * s, width: 7 * s, height: 5 * s, background: '#ff0', borderRadius: `${2*s}px`, boxShadow: `0 0 ${8*s}px rgba(255,255,0,0.6)` }} />
+          {/* Presas */}
+          <div style={{ position: 'absolute', bottom: 0, left: 5 * s, width: 2 * s, height: 5 * s, background: '#fff', borderRadius: `0 0 ${s}px ${s}px` }} />
+          <div style={{ position: 'absolute', bottom: 0, right: 5 * s, width: 2 * s, height: 5 * s, background: '#fff', borderRadius: `0 0 ${s}px ${s}px` }} />
+        </div>
+      </div>
     </div>
   );
 }

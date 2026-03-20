@@ -1015,14 +1015,22 @@ export default function GameCanvas() {
       </div>
 
       <div style={{
-        transform: `scale(${zoom})`,
-        transformOrigin: 'top left',
-        width: w,
-        height: h,
+        perspective: '1200px',
+        perspectiveOrigin: '50% 40%',
         position: 'absolute',
-        top: 0, left: 0,
+        inset: 0,
         zIndex: 1,
+        overflow: 'hidden',
       }}>
+        <div style={{
+          transform: `scale(${zoom}) rotateX(25deg)`,
+          transformOrigin: '50% 50%',
+          transformStyle: 'preserve-3d',
+          width: w,
+          height: h,
+          position: 'absolute',
+          top: 0, left: 0,
+        }}>
         {/* Dust Motes (Atmosfera) */}
         {Array.from({ length: 15 }).map((_, i) => (
           <div key={i} className="dust-mote" style={{
@@ -1237,6 +1245,7 @@ export default function GameCanvas() {
             {dn.damage === 0 ? 'MISS' : dn.isCrit ? `⚡${dn.damage}!` : dn.isHeal ? `+${dn.damage}` : dn.damage}
           </div>
         ))}
+        </div>
       </div>
 
       {/* ── Weapon HUD ── */}
